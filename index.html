@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Governance Diamond Tool</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --blue: #2b7bb9;
+            --red: #d9534f;
+            --yellow: #f0ad4e;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+        }
+
+        input {
+            width: 90%;
+            padding: 15px;
+            font-size: 1.1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+
+        .visual-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        #diamond-svg {
+            width: 400px;
+            height: auto;
+        }
+
+        .btn-row {
+            margin-top: 10px;
+        }
+
+        .download-btn {
+            padding: 12px 24px;
+            background-color: #222;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .download-btn:hover { background-color: #444; }
+
+        .interpretation {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            border-left: 4px solid #2b7bb9;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>AI Governance Diamond Generator</h2>
+    <input type="text" id="taskInput" placeholder='Task Name [ 1 0 2 FACT ]' 
+           value="Grant Writing [ 1 0 2 FACT EMO ]">
+    
+    <div class="visual-area">
+        <svg id="diamond-svg" viewBox="0 0 300 350" xmlns="http://www.w3.org/2000/svg">
+            <text id="sticker-title" x="150" y="30" font-family="Arial" font-weight="bold" font-size="18" text-anchor="middle" fill="#333">TASK NAME</text>
+            
+            <g transform="translate(50, 60)">
+                <path d="M 100 100 L 50 50 L 0 100 L 50 150 Z" fill="#7a8c4e" stroke="#000" stroke-width="2"/>
+                <path d="M 100 100 L 150 50 L 100 0 L 50 50 Z" fill="#b5602a" stroke="#000" stroke-width="2"/>
+                <path d="M 100 100 L 150 150 L 200 100 L 150 50 Z" fill="#7a5c8c" stroke="#000" stroke-width="2"/>
+                <path d="M 100 100 L 50 150 L 100 200 L 150 150 Z" fill="#f5f0e8" stroke="#000" stroke-width="2"/>
+                
+                <text x="50" y="85" font-size="7" fill="rgba(255,255,255,0.8)" font-family="Arial" text-anchor="middle" font-weight="bold">INFRA</text>
+                <text x="100" y="35" font-size="7" fill="rgba(255,255,255,0.8)" font-family="Arial" text-anchor="middle" font-weight="bold">TOOL ACCESS</text>
+                <text x="150" y="85" font-size="7" fill="rgba(255,255,255,0.8)" font-family="Arial" text-anchor="middle" font-weight="bold">COLLAB</text>
+                <text x="100" y="135" font-size="7" fill="#666" font-family="Arial" text-anchor="middle" font-weight="bold">HAZARDS</text>
+
+                <text id="val-infra" x="50" y="115" font-size="28" fill="white" font-family="Arial" font-weight="bold" text-anchor="middle">1</text>
+                <text id="val-tool" x="100" y="65" font-size="28" fill="white" font-family="Arial" font-weight="bold" text-anchor="middle">0</text>
+                <text id="val-collab" x="150" y="115" font-size="28" fill="white" font-family="Arial" font-weight="bold" text-anchor="middle">2</text>
+
+                <!-- Hazard codes rendered dynamically via JS -->
+                <g id="hazard-group"></g>
+                
+                <rect id="human-rect" x="20" y="85" width="160" height="30" fill="white" stroke="#d9534f" stroke-width="3" style="display:none;"/>
+                <text id="human-text" x="100" y="106" font-family="Arial" font-weight="bold" font-size="14" fill="#d9534f" text-anchor="middle" style="display:none;">HUMAN ONLY</text>
+            </g>
+        </svg>
+        <div class="btn-row">
+            <button class="download-btn" id="downloadBtn">Download PNG Sticker</button>
+        </div>
+    </div>
+
+    <div class="interpretation" id="outputInfo"></div>
+</div>
+
+<script>
+    const taskInput = document.getElementById('taskInput');
+    const svg = document.getElementById('diamond-svg');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    function renderHazardCodes(codes) {
+        const group = document.getElementById('hazard-group');
+        // Clear previous
+        while (group.firstChild) group.removeChild(group.firstChild);
+
+        if (codes.length === 0) return;
+
+        // Layout: fit all codes inside the bottom diamond quadrant (centered at 100, 160)
+        // Single code: large font; 2 codes: medium; 3+: small, possibly two rows
+        const centerX = 100;
+
+        if (codes.length === 1) {
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('x', centerX);
+            t.setAttribute('y', 162);
+            t.setAttribute('font-size', '16');
+            t.setAttribute('fill', 'black');
+            t.setAttribute('font-family', 'Arial');
+            t.setAttribute('font-weight', 'bold');
+            t.setAttribute('text-anchor', 'middle');
+            t.textContent = codes[0];
+            group.appendChild(t);
+        } else if (codes.length === 21) {
+            // Side by side
+            const positions = [82, 118];
+            codes.forEach((code, i) => {
+                const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t.setAttribute('x', positions[i]);
+                t.setAttribute('y', 158);
+                t.setAttribute('font-size', '13');
+                t.setAttribute('fill', 'black');
+                t.setAttribute('font-family', 'Arial');
+                t.setAttribute('font-weight', 'bold');
+                t.setAttribute('text-anchor', 'middle');
+                t.textContent = code;
+                group.appendChild(t);
+            });
+        } else {
+            // Up to ~4 codes: first row, then overflow to second row, small font
+            const fontSize = 10;
+            const perRow = Math.ceil(codes.length / 2);
+            const rows = [codes.slice(0, perRow), codes.slice(perRow)];
+            const yPositions = rows[1].length > 0 ? [150, 165] : [160];
+
+            rows.forEach((row, ri) => {
+                if (row.length === 0) return;
+                const spacing = Math.min(34, 60 / row.length);
+                const totalWidth = (row.length - 1) * spacing;
+                const startX = centerX - totalWidth / 2;
+                row.forEach((code, ci) => {
+                    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    t.setAttribute('x', startX + ci * spacing);
+                    t.setAttribute('y', yPositions[ri]);
+                    t.setAttribute('font-size', fontSize);
+                    t.setAttribute('fill', 'black');
+                    t.setAttribute('font-family', 'Arial');
+                    t.setAttribute('font-weight', 'bold');
+                    t.setAttribute('text-anchor', 'middle');
+                    t.textContent = code;
+                    group.appendChild(t);
+                });
+            });
+        }
+    }
+
+    function updateDiamond() {
+        const str = taskInput.value;
+        // Capture task name, three numbers, then one or more codes
+        const regex = /(.*)\[\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+((?:[A-Z0-9\/]+\s*)+)\]/i;
+        const match = str.match(regex);
+
+        if (match) {
+            const [_, title, vInfra, vTool, vCollab, hazardRaw] = match;
+            const hazardCodes = hazardRaw.trim().toUpperCase().split(/\s+/);
+
+            document.getElementById('sticker-title').textContent = title.trim().toUpperCase();
+            document.getElementById('val-infra').textContent = vInfra;
+            document.getElementById('val-tool').textContent = vTool;
+            document.getElementById('val-collab').textContent = vCollab;
+
+            renderHazardCodes(hazardCodes);
+
+            const isHuman = vInfra == -1;
+            document.getElementById('human-rect').style.display = isHuman ? 'block' : 'none';
+            document.getElementById('human-text').style.display = isHuman ? 'block' : 'none';
+
+            let infoHtml = `<strong>Summary:</strong> This task requires a <strong>${vInfra == 1 ? 'Private' : vInfra == 0 ? 'Local' : 'Public'}</strong> environment with <strong>${vCollab == 2 ? 'Co-Pilot' : 'Human-led'}</strong> interaction. Hazard codes: <strong>${hazardCodes.join(', ')}</strong>.`;
+            if (isHuman) infoHtml = `<span style="color:#d9534f; font-weight:bold;">🚨 This is a restricted human-only task. Codes: ${hazardCodes.join(', ')}</span>`;
+            document.getElementById('outputInfo').innerHTML = infoHtml;
+        }
+    }
+
+    downloadBtn.addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const img = new Image();
+        const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+        const url = URL.createObjectURL(svgBlob);
+
+        img.onload = () => {
+            canvas.width = 1200;
+            canvas.height = 1400;
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, 1200, 1400);
+            const pngUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = pngUrl;
+            link.download = `AI-Diamond-${document.getElementById('sticker-title').textContent}.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+        };
+        img.src = url;
+    });
+
+    taskInput.addEventListener('input', updateDiamond);
+    updateDiamond();
+</script>
+</body>
+</html>
