@@ -1,0 +1,251 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;padding:1.5rem 1rem;min-height:100vh}
+h2{font-size:18px;font-weight:500;margin-bottom:1.5rem;color:#1a1a18}
+.card{background:#fff;border:1px solid #dddbd3;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.section-title{font-size:11px;font-weight:500;color:#888780;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.85rem}
+.drop-zone{border:1.5px dashed #bbb9b0;border-radius:8px;padding:2rem 1rem;text-align:center;cursor:pointer;transition:background .15s;background:#fafaf8}
+.drop-zone:hover,.drop-zone.over{background:#f0efe9}
+.drop-icon{font-size:28px;margin-bottom:8px}
+.drop-text{font-size:14px;color:#888780}
+.file-name{font-size:13px;font-weight:500;color:#1a1a18;margin-top:6px}
+.file-dir{font-size:12px;color:#888780;margin-top:2px;word-break:break-all}
+.row{display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:end;margin-bottom:.5rem}
+.arrow{text-align:center;font-size:18px;color:#888780;padding-bottom:8px}
+.col-label{font-size:13px;color:#555552;margin-bottom:4px}
+select{width:100%;padding:8px 10px;border:1px solid #ccc9c0;border-radius:8px;background:#fff;color:#1a1a18;font-size:14px;appearance:auto}
+.options-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.85rem}
+.opt-row{display:flex;flex-direction:column;gap:4px}
+.opt-row label{font-size:13px;color:#555552}
+input[type=text]{width:100%;padding:7px 10px;border:1px solid #ccc9c0;border-radius:8px;background:#fff;color:#1a1a18;font-size:13px}
+input[type=text]::placeholder{color:#aaa9a0}
+.toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#555552;cursor:pointer;margin-bottom:6px}
+.toggle-row input{width:15px;height:15px;cursor:pointer;accent-color:#4a6fa5}
+.cmd-block{margin-bottom:.75rem}
+.cmd-label{font-size:11px;font-weight:500;color:#888780;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.cmd-box{background:#f5f4f0;border:1px solid #dddbd3;border-radius:8px;padding:.85rem 3rem .85rem 1rem;font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;font-size:13px;color:#1a1a18;word-break:break-all;line-height:1.6;position:relative;min-height:44px}
+.cmd-placeholder{color:#888780}
+.copy-btn{position:absolute;top:7px;right:8px;padding:4px 10px;font-size:12px;border:1px solid #ccc9c0;border-radius:6px;background:#fff;color:#555552;cursor:pointer;transition:.1s}
+.copy-btn:hover{background:#f0efe9}
+.note{font-size:12px;color:#888780;margin-top:.5rem;line-height:1.5}
+.dir-info{display:flex;align-items:center;gap:6px;font-size:12px;color:#555552;background:#f5f4f0;border:1px solid #dddbd3;border-radius:6px;padding:6px 10px;margin-top:.75rem}
+.dir-info span{word-break:break-all}
+.dir-dot{width:7px;height:7px;border-radius:50%;background:#bbb9b0;flex-shrink:0}
+</style>
+
+<h2>Pandoc converter</h2>
+
+<div class="card">
+  <div class="section-title">Input file</div>
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="drop-icon">📄</div>
+    <div class="drop-text">Click to choose a file — or drag one here</div>
+    <div class="file-name" id="fileName"></div>
+    <div class="file-dir" id="fileDir"></div>
+  </div>
+  <input type="file" id="fileInput" style="display:none">
+  <div class="dir-info" id="dirInfo" style="display:none">
+    <div class="dir-dot"></div>
+    <span id="dirInfoText"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">Conversion</div>
+  <div class="row">
+    <div>
+      <div class="col-label">From</div>
+      <select id="fromFmt" onchange="updateCmd()">
+        <option value="">Auto-detect</option>
+        <option value="markdown">Markdown</option>
+        <option value="docx">Word (.docx)</option>
+        <option value="html">HTML</option>
+        <option value="rst">reStructuredText</option>
+        <option value="latex">LaTeX</option>
+        <option value="org">Org mode</option>
+        <option value="odt">OpenDocument (.odt)</option>
+        <option value="epub">EPUB</option>
+        <option value="textile">Textile</option>
+        <option value="mediawiki">MediaWiki</option>
+        <option value="json">Pandoc JSON</option>
+        <option value="csv">CSV</option>
+      </select>
+    </div>
+    <div class="arrow">→</div>
+    <div>
+      <div class="col-label">To</div>
+      <select id="toFmt" onchange="toChanged()">
+        <option value="docx">Word (.docx)</option>
+        <option value="pdf">PDF</option>
+        <option value="html">HTML</option>
+        <option value="markdown">Markdown</option>
+        <option value="rst">reStructuredText</option>
+        <option value="latex">LaTeX</option>
+        <option value="odt">OpenDocument (.odt)</option>
+        <option value="epub">EPUB</option>
+        <option value="pptx">PowerPoint (.pptx)</option>
+        <option value="rtf">RTF</option>
+        <option value="plain">Plain text</option>
+        <option value="mediawiki">MediaWiki</option>
+        <option value="json">Pandoc JSON</option>
+        <option value="asciidoc">AsciiDoc</option>
+        <option value="textile">Textile</option>
+        <option value="org">Org mode</option>
+        <option value="man">Man page</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">Options</div>
+  <div class="options-grid">
+    <div class="opt-row">
+      <label>Output filename (no extension)</label>
+      <input type="text" id="outName" placeholder="same as input (auto)" oninput="updateCmd()">
+    </div>
+    <div class="opt-row">
+      <label>CSS / template file</label>
+      <input type="text" id="tmpl" placeholder="style.css or template.html" oninput="updateCmd()">
+    </div>
+  </div>
+  <label class="toggle-row"><input type="checkbox" id="toc" onchange="updateCmd()"> Table of contents</label>
+  <label class="toggle-row"><input type="checkbox" id="standalone" checked onchange="updateCmd()"> Standalone output (–standalone)</label>
+  <label class="toggle-row"><input type="checkbox" id="noHighlight" onchange="updateCmd()"> Disable syntax highlighting</label>
+  <label class="toggle-row" id="pdfEngineRow" style="display:none"><input type="checkbox" id="xelatex" onchange="updateCmd()"> Use XeLaTeX engine (better Unicode)</label>
+</div>
+
+<div class="card">
+  <div class="section-title">Generated command</div>
+
+  <div class="cmd-block" id="cdBlock" style="display:none">
+    <div class="cmd-label">Step 1 — go to file directory</div>
+    <div class="cmd-box" id="cdBox"></div>
+  </div>
+
+  <div class="cmd-block">
+    <div class="cmd-label" id="pandocLabel">Pandoc command</div>
+    <div class="cmd-box" id="cmdBox">
+      <span class="cmd-placeholder">Choose a file to see the command.</span>
+    </div>
+  </div>
+
+  <div class="note" id="dirNote" style="display:none"></div>
+</div>
+
+<script>
+const dropZone=document.getElementById('dropZone');
+const fileInput=document.getElementById('fileInput');
+let currentFile=null;
+let filePath='';
+
+const extMap={md:'markdown',markdown:'markdown',txt:'markdown',docx:'docx',doc:'docx',odt:'odt',html:'html',htm:'html',tex:'latex',latex:'latex',rst:'rst',org:'org',epub:'epub',textile:'textile',wiki:'mediawiki',json:'json',csv:'csv'};
+const outExt={docx:'.docx',pdf:'.pdf',html:'.html',markdown:'.md',rst:'.rst',latex:'.tex',odt:'.odt',epub:'.epub',pptx:'.pptx',rtf:'.rtf',plain:'.txt',mediawiki:'.wiki',json:'.json',asciidoc:'.adoc',textile:'.textile',org:'.org',man:'.1'};
+
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('over')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('over'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault();dropZone.classList.remove('over');
+  const f=e.dataTransfer.files[0];if(f)setFile(f);
+});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])setFile(fileInput.files[0])});
+
+function setFile(f){
+  currentFile=f;
+  filePath=f.webkitRelativePath||'';
+  document.getElementById('fileName').textContent=f.name;
+
+  const dirInfo=document.getElementById('dirInfo');
+  const dirInfoText=document.getElementById('dirInfoText');
+  const fileDir=document.getElementById('fileDir');
+
+  if(filePath&&filePath.includes('/')){
+    const dir=filePath.substring(0,filePath.lastIndexOf('/'));
+    fileDir.textContent='';
+    dirInfo.style.display='flex';
+    dirInfoText.textContent='Directory hint: '+dir+' (from relative path)';
+  } else {
+    fileDir.textContent='Tip: browser cannot read the full path — enter it below if needed';
+    dirInfo.style.display='none';
+  }
+
+  const ext=f.name.split('.').pop().toLowerCase();
+  document.getElementById('fromFmt').value=extMap[ext]||'';
+  updateCmd();
+}
+
+function toChanged(){
+  document.getElementById('pdfEngineRow').style.display=document.getElementById('toFmt').value==='pdf'?'flex':'none';
+  updateCmd();
+}
+
+function updateCmd(){
+  const cmdBox=document.getElementById('cmdBox');
+  const cdBlock=document.getElementById('cdBlock');
+  const dirNote=document.getElementById('dirNote');
+  const pandocLabel=document.getElementById('pandocLabel');
+
+  if(!currentFile){
+    cmdBox.innerHTML='<span class="cmd-placeholder">Choose a file to see the command.</span>';
+    cdBlock.style.display='none';
+    dirNote.style.display='none';
+    return;
+  }
+
+  const fname=currentFile.name;
+  const from=document.getElementById('fromFmt').value;
+  const to=document.getElementById('toFmt').value;
+  const toc=document.getElementById('toc').checked;
+  const standalone=document.getElementById('standalone').checked;
+  const noHL=document.getElementById('noHighlight').checked;
+  const xelatex=document.getElementById('xelatex').checked;
+  const tmpl=document.getElementById('tmpl').value.trim();
+  const customOut=document.getElementById('outName').value.trim();
+
+  const baseName=fname.replace(/\.[^.]+$/,'');
+  const outFile=(customOut||baseName)+(outExt[to]||'');
+
+  let parts=['pandoc'];
+  if(from)parts.push(`-f ${from}`);
+  parts.push(`-t ${to}`);
+  if(standalone)parts.push('-s');
+  if(toc)parts.push('--toc');
+  if(noHL)parts.push('--no-highlight');
+  if(to==='pdf'&&xelatex)parts.push('--pdf-engine=xelatex');
+  if(tmpl){
+    if(to==='html'&&tmpl.endsWith('.css'))parts.push(`--css="${tmpl}"`);
+    else parts.push(`--template="${tmpl}"`);
+  }
+
+  const relPath=filePath&&filePath.includes('/')?filePath.substring(0,filePath.lastIndexOf('/'))+'/':'';
+  const inputArg=relPath?`"${relPath}${fname}"`:`"${fname}"`;
+  const outputArg=`"${relPath}${outFile}"`;
+
+  parts.push(inputArg);
+  parts.push(`-o ${outputArg}`);
+
+  const cmd=parts.join(' ');
+
+  if(relPath){
+    const cdCmd=`cd "${relPath.replace(/\/$/,'')}"`;
+    const simpleCmd=parts.slice(0,-2).concat([`"${fname}"`,`-o "${outFile}"`]).join(' ');
+    cdBlock.style.display='block';
+    document.getElementById('cdBox').innerHTML=`<span>${cdCmd}</span><button class="copy-btn" onclick="copyText(this,'${esc(cdCmd)}')">Copy</button>`;
+    pandocLabel.textContent='Step 2 — run pandoc';
+    cmdBox.innerHTML=`<span>${simpleCmd}</span><button class="copy-btn" onclick="copyText(this,'${esc(simpleCmd)}')">Copy</button>`;
+    dirNote.style.display='none';
+  } else {
+    cdBlock.style.display='none';
+    pandocLabel.textContent='Pandoc command';
+    cmdBox.innerHTML=`<span>${cmd}</span><button class="copy-btn" onclick="copyText(this,'${esc(cmd)}')">Copy</button>`;
+    dirNote.style.display='block';
+    dirNote.textContent='ℹ︎ Run this from the folder containing your file, or replace the filename with its full path (e.g. /Users/you/Documents/'+fname+').';
+  }
+}
+
+function esc(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function copyText(btn,text){
+  navigator.clipboard.writeText(text).then(()=>{btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy'},1500)});
+}
+</script>
