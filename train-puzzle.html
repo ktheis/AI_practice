@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAIL MAZE — Tile Puzzle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #0f0f1a;
+    --rail: #e8c84a;
+    --rail-dim: #5a4e1a;
+    --ball: #ff4444;
+    --tile-bg: #141428;
+    --tile-border: #2a2a4a;
+    --tile-locked: #1a1010;
+    --tile-locked-border: #4a1a1a;
+    --tile-slideable: #1a2a1a;
+    --tile-slideable-border: #3aaa3a;
+    --empty: #080810;
+    --text: #e8c84a;
+    --text-dim: #5a4e1a;
+    --green: #44ff88;
+    --scanline: rgba(0,0,0,0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'VT323', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, var(--scanline) 0px, var(--scanline) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 60%, #000000cc 100%);
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  h1 {
+    font-size: 3rem;
+    letter-spacing: 0.3em;
+    text-shadow: 0 0 20px var(--rail), 0 0 40px var(--rail);
+    margin-bottom: 0.2em;
+    animation: flicker 8s infinite;
+  }
+
+  @keyframes flicker {
+    0%,94%,96%,100% { opacity: 1; }
+    95% { opacity: 0.6; }
+  }
+
+  .subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.2em;
+    margin-bottom: 1.5em;
+  }
+
+  .game-wrap {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+  }
+
+  .board-wrap {
+    position: relative;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(4, 90px);
+    grid-template-rows: repeat(4, 90px);
+    gap: 3px;
+    background: #000;
+    border: 2px solid var(--tile-border);
+    box-shadow: 0 0 30px #e8c84a22, inset 0 0 20px #00000088;
+    position: relative;
+  }
+
+  .tile {
+    width: 90px;
+    height: 90px;
+    background: var(--tile-bg);
+    border: 1px solid var(--tile-border);
+    cursor: default;
+    position: relative;
+    transition: background 0.12s, border-color 0.12s;
+    overflow: hidden;
+  }
+
+  .tile.empty {
+    background: var(--empty);
+    border-color: #111122;
+  }
+
+  .tile.locked {
+    background: var(--tile-locked);
+    border-color: var(--tile-locked-border);
+    cursor: not-allowed;
+  }
+  .tile.locked::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(45deg, transparent, transparent 8px, #ff000011 8px, #ff000011 10px);
+    pointer-events: none;
+  }
+
+  .tile.slideable {
+    cursor: pointer;
+  }
+  .tile.slideable:hover {
+    background: #1e1e38;
+    border-color: #4a4a8a;
+  }
+
+  .tile svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .panel {
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .panel-box {
+    border: 1px solid var(--tile-border);
+    padding: 0.75rem;
+    background: var(--panel);
+  }
+
+  .panel-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    letter-spacing: 0.15em;
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+  }
+
+  .panel-value {
+    font-size: 2rem;
+    text-shadow: 0 0 10px var(--rail);
+  }
+
+  .status-msg {
+    font-size: 1.05rem;
+    line-height: 1.4;
+    min-height: 2.6rem;
+    color: var(--green);
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  .status-msg.danger {
+    color: var(--ball);
+    text-shadow: 0 0 8px var(--ball);
+    animation: blink 0.5s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .btn {
+    font-family: 'VT323', monospace;
+    font-size: 1.3rem;
+    letter-spacing: 0.1em;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--rail);
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    width: 100%;
+    text-shadow: 0 0 8px var(--rail);
+    box-shadow: 0 0 8px var(--rail-dim);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover {
+    background: var(--rail-dim);
+    box-shadow: 0 0 20px var(--rail);
+  }
+
+  .legend {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    line-height: 1.9;
+    letter-spacing: 0.04em;
+  }
+
+  #ball-layer {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  #overlay {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: #000000cc;
+    z-index: 50;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+  #overlay.show { display: flex; }
+  #overlay-title { font-size: 3rem; text-shadow: 0 0 20px currentColor; letter-spacing: 0.2em; color: var(--ball); }
+  #overlay-sub { font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.12em; text-align:center; }
+
+  .speed-row { display: flex; gap: 4px; margin-top: 0.3rem; }
+  .speed-pip { flex: 1; height: 8px; background: var(--tile-border); border: 1px solid #2a2a4a; transition: background 0.2s; }
+  .speed-pip.on { background: var(--rail); box-shadow: 0 0 6px var(--rail); }
+</style>
+</head>
+<body>
+
+<h1>RAIL MAZE</h1>
+<p class="subtitle">SLIDE · ROUTE · SURVIVE</p>
+
+<div class="game-wrap">
+  <div class="board-wrap">
+    <div id="board"></div>
+    <canvas id="ball-layer"></canvas>
+    <div id="overlay">
+      <div id="overlay-title">GAME OVER</div>
+      <div id="overlay-sub"></div>
+      <button class="btn" onclick="initGame()" style="width:140px;margin-top:0.5rem">RESTART</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-box">
+      <div class="panel-label">Score</div>
+      <div class="panel-value" id="score">0</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Tiles moved</div>
+      <div class="panel-value" id="moves">0</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Status</div>
+      <div class="status-msg" id="status">READY</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Speed</div>
+      <div class="speed-row" id="speed-pips">
+        <div class="speed-pip on"></div>
+        <div class="speed-pip"></div>
+        <div class="speed-pip"></div>
+        <div class="speed-pip"></div>
+        <div class="speed-pip"></div>
+      </div>
+    </div>
+    <button class="btn" onclick="initGame()">↺ RESTART</button>
+    <button class="btn" onclick="togglePause()" id="pause-btn">⏸ PAUSE</button>
+    <div class="panel-box legend">
+      <div class="panel-label">How to play</div>
+      Click a tile next to<br>
+      the gap to slide it.<br><br>
+      <span style="color:#e8c84a">↑↓←→</span> or <span style="color:#e8c84a">WASD</span><br>
+      slide the tile on that<br>
+      side into the gap.<br><br>
+      <span style="color:#ff6666">Red tile</span> = ball<br>
+      is on it — locked.<br><br>
+      <span style="color:#aaffcc">🐄</span> cow = ball stops!
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// TILE TYPES
+// ═══════════════════════════════════════════════════════════════
+const TILE = { PLUS:'P', CURVE_A:'A', CURVE_B:'B', EMPTY:'E' };
+
+// Directions
+const UP=0, RIGHT=1, DOWN=2, LEFT=3;
+const OPPOSITE = { [UP]:DOWN, [DOWN]:UP, [LEFT]:RIGHT, [RIGHT]:LEFT };
+const DR = { [UP]:-1, [DOWN]:1, [LEFT]:0,  [RIGHT]:0  };
+const DC = { [UP]:0,  [DOWN]:0, [LEFT]:-1, [RIGHT]:1  };
+
+/*
+  getExitDir(tileType, entryDir) → exitDir
+
+  "entryDir" = which side of the tile the ball entered FROM.
+  Think of it as: the ball arrived via the UP edge, LEFT edge, etc.
+
+  PLUS (independent straight tracks):
+    UP   → DOWN   (vertical tunnel, passes straight through)
+    DOWN → UP
+    LEFT → RIGHT  (horizontal tunnel)
+    RIGHT→ LEFT
+
+  CURVE_A (top connects to right;  bottom connects to left):
+    UP   → RIGHT
+    RIGHT→ UP
+    DOWN → LEFT
+    LEFT → DOWN
+
+  CURVE_B (top connects to left;  bottom connects to right):
+    UP   → LEFT
+    LEFT → UP
+    DOWN → RIGHT
+    RIGHT→ DOWN
+*/
+function getExitDir(type, entryDir) {
+  if (type === TILE.PLUS) return OPPOSITE[entryDir];
+  if (type === TILE.CURVE_A) {
+    if (entryDir===UP)    return RIGHT;
+    if (entryDir===RIGHT) return UP;
+    if (entryDir===DOWN)  return LEFT;
+    if (entryDir===LEFT)  return DOWN;
+  }
+  if (type === TILE.CURVE_B) {
+    if (entryDir===UP)    return LEFT;
+    if (entryDir===LEFT)  return UP;
+    if (entryDir===DOWN)  return RIGHT;
+    if (entryDir===RIGHT) return DOWN;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════════
+const TILE_PX = 90;
+const GAP_PX  = 3;
+const CELL_PX = TILE_PX + GAP_PX; // 93
+
+let grid = [];
+let emptyPos = {r:3,c:3};
+
+// Ball object:
+//   r, c        : current tile grid position
+//   entryDir    : which side of current tile the ball entered FROM
+//   exitDir     : which side it will exit toward (computed from tile+entry)
+//   progress    : 0..1 how far across current tile
+let ball = null;
+
+let score=0, moves=0, gameOver=false, paused=false;
+let lockedTile=null;
+let cows=[];
+let cowStopTimer=0;
+let animFrame=null, lastTime=null;
+let speedLevel=1, distanceTraveled=0;
+let cowSpawnTimer=0, nextCowIn=12;
+
+function ballSpeed() { return 18 + (speedLevel-1)*7; }
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+function initGame() {
+  let tiles=[];
+  for(let i=0;i<5;i++) tiles.push(TILE.PLUS,TILE.CURVE_A,TILE.CURVE_B);
+  shuffle(tiles);
+
+  grid=[];
+  let idx=0;
+  for(let r=0;r<4;r++){
+    grid[r]=[];
+    for(let c=0;c<4;c++){
+      grid[r][c]=(r===3&&c===3)?TILE.EMPTY:tiles[idx++];
+    }
+  }
+  emptyPos={r:3,c:3};
+
+  // Ball starts at tile (2,2).
+  // It enters from the TOP (as if arriving from above).
+  const startEntry = UP;
+  const startExit  = getExitDir(grid[2][2], startEntry);
+  ball = {r:2, c:2, entryDir:startEntry, exitDir:startExit, progress:0};
+
+  score=0; moves=0; gameOver=false; paused=false;
+  lockedTile={r:2,c:2};
+  cows=[]; cowStopTimer=0; speedLevel=1; distanceTraveled=0;
+  cowSpawnTimer=0; nextCowIn=12;
+
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('pause-btn').textContent='⏸ PAUSE';
+  setStatus('ON THE RAILS',false);
+  updateUI();
+  renderBoard();
+
+  if(animFrame) cancelAnimationFrame(animFrame);
+  lastTime=null;
+  animFrame=requestAnimationFrame(gameLoop);
+}
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML='';
+
+  const canvas=document.getElementById('ball-layer');
+  const total=4*TILE_PX+3*GAP_PX;
+  canvas.width=total; canvas.height=total;
+
+  // Build set of slideable tile positions
+  const slideSet=new Set();
+  const {r:er,c:ec}=emptyPos;
+  [[er-1,ec],[er+1,ec],[er,ec-1],[er,ec+1]].forEach(([r,c])=>{
+    if(r>=0&&r<4&&c>=0&&c<4){
+      if(!(lockedTile&&lockedTile.r===r&&lockedTile.c===c)){
+        slideSet.add(r*4+c);
+      }
+    }
+  });
+
+  for(let r=0;r<4;r++){
+    for(let c=0;c<4;c++){
+      const div=document.createElement('div');
+      div.className='tile';
+      const type=grid[r][c];
+
+      if(type===TILE.EMPTY){
+        div.classList.add('empty');
+      } else if(lockedTile&&lockedTile.r===r&&lockedTile.c===c){
+        div.classList.add('locked');
+        div.innerHTML=makeTileSVG(type,r,c);
+      } else if(slideSet.has(r*4+c)){
+        div.classList.add('slideable');
+        div.innerHTML=makeTileSVG(type,r,c);
+        div.addEventListener('click',()=>slideTile(r,c));
+      } else {
+        div.innerHTML=makeTileSVG(type,r,c);
+      }
+      board.appendChild(div);
+    }
+  }
+}
+
+function makeArrow(r,c){
+  const {r:er,c:ec}=emptyPos;
+  let arrow='',style='';
+  const h='top:50%;transform:translateY(-50%)', v='left:50%;transform:translateX(-50%)';
+  if(r===er-1&&c===ec){arrow='↓';style=`bottom:3px;${v}`;}
+  if(r===er+1&&c===ec){arrow='↑';style=`top:3px;${v}`;}
+  if(r===er&&c===ec-1){arrow='→';style=`right:3px;${h}`;}
+  if(r===er&&c===ec+1){arrow='←';style=`left:3px;${h}`;}
+  return `<div class="slide-arrow" style="position:absolute;${style}">${arrow}</div>`;
+}
+
+function makeTileSVG(type,r,c){
+  const S=TILE_PX, mid=S/2;
+  const tw=7, tc='#e8c84a', tieC='#4a3a0a';
+
+  let svg=`<svg viewBox="0 0 ${S} ${S}" xmlns="http://www.w3.org/2000/svg"><rect width="${S}" height="${S}" fill="transparent"/>`;
+
+  if(type===TILE.PLUS){
+    // Vertical: (mid,0)→(mid,S)   Horizontal: (0,mid)→(S,mid)
+    // Ties
+    [0.25,0.5,0.75].forEach(t=>{
+      svg+=`<line x1="${mid-10}" y1="${t*S}" x2="${mid+10}" y2="${t*S}" stroke="${tieC}" stroke-width="3" stroke-linecap="round"/>`;
+      svg+=`<line x1="${t*S}" y1="${mid-10}" x2="${t*S}" y2="${mid+10}" stroke="${tieC}" stroke-width="3" stroke-linecap="round"/>`;
+    });
+    // Rails
+    svg+=`<line x1="${mid}" y1="0" x2="${mid}" y2="${S}" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+    svg+=`<line x1="0" y1="${mid}" x2="${S}" y2="${mid}" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+    // Overpass indicator: small gap and redraw to show they don't connect
+    svg+=`<rect x="${mid-6}" y="${mid-6}" width="12" height="12" fill="#141428"/>`;
+    svg+=`<line x1="${mid}" y1="${mid-6}" x2="${mid}" y2="${mid+6}" stroke="${tc}" stroke-width="${tw}"/>`;
+    svg+=`<line x1="${mid-6}" y1="${mid}" x2="${mid+6}" y2="${mid}" stroke="${tc}" stroke-width="${tw}"/>`;
+  }
+
+  if(type===TILE.CURVE_A){
+    // Track 1: top-center → right-center, bending through tile center
+    // Track 2: bottom-center → left-center, bending through tile center
+    svg+=`<path d="M ${mid} 0 Q ${mid} ${mid} ${S} ${mid}" fill="none" stroke="${tieC}" stroke-width="3" stroke-dasharray="5,8"/>`;
+    svg+=`<path d="M ${mid} 0 Q ${mid} ${mid} ${S} ${mid}" fill="none" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+    svg+=`<path d="M ${mid} ${S} Q ${mid} ${mid} 0 ${mid}" fill="none" stroke="${tieC}" stroke-width="3" stroke-dasharray="5,8"/>`;
+    svg+=`<path d="M ${mid} ${S} Q ${mid} ${mid} 0 ${mid}" fill="none" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+  }
+
+  if(type===TILE.CURVE_B){
+    // Track 1: top-center → left-center, bending through tile center
+    // Track 2: bottom-center → right-center, bending through tile center
+    svg+=`<path d="M ${mid} 0 Q ${mid} ${mid} 0 ${mid}" fill="none" stroke="${tieC}" stroke-width="3" stroke-dasharray="5,8"/>`;
+    svg+=`<path d="M ${mid} 0 Q ${mid} ${mid} 0 ${mid}" fill="none" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+    svg+=`<path d="M ${mid} ${S} Q ${mid} ${mid} ${S} ${mid}" fill="none" stroke="${tieC}" stroke-width="3" stroke-dasharray="5,8"/>`;
+    svg+=`<path d="M ${mid} ${S} Q ${mid} ${mid} ${S} ${mid}" fill="none" stroke="${tc}" stroke-width="${tw}" stroke-linecap="round"/>`;
+  }
+
+  // Cow
+  const cow=cows.find(k=>k.r===r&&k.c===c);
+  if(cow) svg+=`<text x="${mid}" y="${mid+18}" text-anchor="middle" font-size="48">🐄</text>`;
+
+  svg+=`</svg>`;
+  return svg;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SLIDE
+// ═══════════════════════════════════════════════════════════════
+function slideTile(r,c){
+  if(gameOver||paused) return;
+  const dr=r-emptyPos.r, dc=c-emptyPos.c;
+  if(!((Math.abs(dr)===1&&dc===0)||(Math.abs(dc)===1&&dr===0))) return;
+  if(lockedTile&&lockedTile.r===r&&lockedTile.c===c){ setStatus('TRAIN ON TILE!',true); return; }
+  grid[emptyPos.r][emptyPos.c]=grid[r][c];
+  grid[r][c]=TILE.EMPTY;
+  emptyPos={r,c};
+  moves++; score+=2;
+  updateUI();
+  renderBoard();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GAME LOOP
+// ═══════════════════════════════════════════════════════════════
+function gameLoop(ts){
+  if(gameOver) return;
+  if(lastTime===null) lastTime=ts;
+  const dt=Math.min((ts-lastTime)/1000,0.05);
+  lastTime=ts;
+  if(!paused){
+    updateBall(dt);
+    maybeSpawnCow(dt);
+    updateCows(dt);
+    updateSpeedLevel();
+  }
+  drawBall();
+  animFrame=requestAnimationFrame(gameLoop);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BALL UPDATE
+// ═══════════════════════════════════════════════════════════════
+function updateBall(dt){
+  if(!ball) return;
+  if(cowStopTimer>0){
+    cowStopTimer-=dt;
+    setStatus('🐄 MOO! STOPPED!',false);
+    return;
+  }
+
+  const progressPerSec=ballSpeed()/TILE_PX;
+  ball.progress+=progressPerSec*dt;
+  distanceTraveled+=progressPerSec*dt;
+  score+=Math.floor(progressPerSec*dt*8);
+
+  while(ball.progress>=1){
+    ball.progress-=1;
+
+    // Ball is leaving current tile via exitDir, moving to the next tile
+    const exitDir=ball.exitDir;
+    const nr=ball.r+DR[exitDir];
+    const nc=ball.c+DC[exitDir];
+
+    if(nr<0||nr>=4||nc<0||nc>=4){ endGame('FELL OFF THE EDGE!'); return; }
+    if(grid[nr][nc]===TILE.EMPTY){ endGame('FELL IN THE GAP!'); return; }
+
+    // The ball enters the next tile from the OPPOSITE side
+    // e.g. exiting RIGHT means entering the next tile from the LEFT
+    const newEntry=OPPOSITE[exitDir];
+    const newExit=getExitDir(grid[nr][nc],newEntry);
+    if(newExit===null){ endGame('DERAILED!'); return; }
+
+    // Cow check
+    const cow=cows.find(k=>k.r===nr&&k.c===nc);
+    if(cow){ cowStopTimer=1.8; removeCow(cow); }
+
+    ball.r=nr; ball.c=nc;
+    ball.entryDir=newEntry;
+    ball.exitDir=newExit;
+    lockedTile={r:nr,c:nc};
+
+    score+=5;
+    updateUI();
+    renderBoard();
+    if(cowStopTimer<=0) setStatus('ON THE RAILS',false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BALL DRAWING
+// ═══════════════════════════════════════════════════════════════
+/*
+  Ball position is interpolated along the track path from entry-side midpoint
+  to exit-side midpoint.
+
+  For PLUS (straight through): linear interpolation.
+
+  For CURVE_A and CURVE_B: quadratic Bezier curve.
+  The control point is the CORNER the arc bends around:
+
+    CURVE_A:
+      UP→RIGHT or RIGHT→UP   : corner = top-right    (ox+S, oy)
+      DOWN→LEFT or LEFT→DOWN  : corner = bottom-left  (ox,   oy+S)
+
+    CURVE_B:
+      UP→LEFT or LEFT→UP     : corner = top-left     (ox,   oy)
+      DOWN→RIGHT or RIGHT→DOWN: corner = bottom-right (ox+S, oy+S)
+
+  This ensures the ball follows the arc drawn in the SVG exactly.
+*/
+function getBallPos(r,c,entryDir,exitDir,progress){
+  const ox=c*CELL_PX, oy=r*CELL_PX;
+  const S=TILE_PX, mid=S/2, t=progress;
+
+  function sideMid(dir){
+    if(dir===UP)    return {x:ox+mid, y:oy};
+    if(dir===DOWN)  return {x:ox+mid, y:oy+S};
+    if(dir===LEFT)  return {x:ox,     y:oy+mid};
+    if(dir===RIGHT) return {x:ox+S,   y:oy+mid};
+  }
+
+  const start=sideMid(entryDir);
+  const end=sideMid(exitDir);
+  const type=grid[r][c];
+
+  if(type===TILE.PLUS || type===TILE.EMPTY){
+    return {x:start.x+(end.x-start.x)*t, y:start.y+(end.y-start.y)*t};
+  }
+
+  // Quadratic Bezier control point = tile center (matches SVG arc)
+  const cx = ox + mid;
+  const cy = oy + mid;
+
+  const x=(1-t)*(1-t)*start.x + 2*(1-t)*t*cx + t*t*end.x;
+  const y=(1-t)*(1-t)*start.y + 2*(1-t)*t*cy + t*t*end.y;
+  return {x,y};
+}
+
+function drawBall(){
+  const canvas=document.getElementById('ball-layer');
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!ball) return;
+
+  const pos=getBallPos(ball.r,ball.c,ball.entryDir,ball.exitDir,ball.progress);
+
+  const grad=ctx.createRadialGradient(pos.x,pos.y,0,pos.x,pos.y,16);
+  grad.addColorStop(0,'#ff555588');
+  grad.addColorStop(1,'transparent');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.arc(pos.x,pos.y,16,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle='#ff3333';
+  ctx.shadowColor='#ff0000'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(pos.x,pos.y,7,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle='rgba(255,200,200,0.8)';
+  ctx.beginPath(); ctx.arc(pos.x-2,pos.y-2,2.5,0,Math.PI*2); ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COWS
+// ═══════════════════════════════════════════════════════════════
+function maybeSpawnCow(dt){
+  cowSpawnTimer+=dt;
+  if(cowSpawnTimer>=nextCowIn){
+    cowSpawnTimer=0;
+    nextCowIn=8+Math.random()*10;
+    let cands=[];
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++)
+      if(grid[r][c]!==TILE.EMPTY&&!(ball&&ball.r===r&&ball.c===c))
+        cands.push({r,c});
+    if(!cands.length) return;
+    const s=cands[Math.floor(Math.random()*cands.length)];
+    cows.push({r:s.r,c:s.c,life:7});
+    renderBoard();
+  }
+}
+
+function updateCows(dt){
+  const before=cows.length;
+  cows=cows.filter(k=>{k.life-=dt;return k.life>0;});
+  if(cows.length!==before) renderBoard();
+}
+
+function removeCow(cow){ cows=cows.filter(k=>k!==cow); renderBoard(); }
+
+// ═══════════════════════════════════════════════════════════════
+// SPEED
+// ═══════════════════════════════════════════════════════════════
+function updateSpeedLevel(){
+  const lvl=Math.min(5,1+Math.floor(distanceTraveled/20));
+  if(lvl!==speedLevel){
+    speedLevel=lvl;
+    document.querySelectorAll('.speed-pip').forEach((p,i)=>p.classList.toggle('on',i<speedLevel));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GAME OVER / PAUSE / UI
+// ═══════════════════════════════════════════════════════════════
+function endGame(reason){
+  gameOver=true; ball=null;
+  document.getElementById('overlay-title').textContent='GAME OVER';
+  document.getElementById('overlay-sub').textContent=reason+'  —  SCORE: '+score;
+  document.getElementById('overlay').classList.add('show');
+  setStatus(reason,true);
+  const ctx=document.getElementById('ball-layer').getContext('2d');
+  ctx.clearRect(0,0,999,999);
+}
+
+function togglePause(){
+  if(gameOver) return;
+  paused=!paused;
+  document.getElementById('pause-btn').textContent=paused?'▶ RESUME':'⏸ PAUSE';
+  if(!paused){lastTime=null; setStatus('ON THE RAILS',false);}
+  else setStatus('PAUSED',false);
+}
+
+function updateUI(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('moves').textContent=moves;
+}
+
+function setStatus(msg,danger){
+  const el=document.getElementById('status');
+  el.textContent=msg;
+  el.className='status-msg'+(danger?' danger':'');
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// KEYBOARD CONTROL
+// Arrow keys / WASD: slide the tile on that side of the empty
+// space in the pressed direction (into the gap).
+// e.g. pressing RIGHT slides the tile LEFT of the gap rightward.
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  const keyMap = {
+    'ArrowUp':'up','ArrowDown':'down','ArrowLeft':'left','ArrowRight':'right',
+    'w':'up','s':'down','a':'left','d':'right',
+    'W':'up','S':'down','A':'left','D':'right',
+  };
+  const dir = keyMap[e.key];
+  if (!dir) return;
+  e.preventDefault();
+
+  // Find which tile slides into the empty space
+  const {r:er, c:ec} = emptyPos;
+  let tr, tc;
+  if (dir==='up')    { tr=er+1; tc=ec; }   // tile below slides up
+  if (dir==='down')  { tr=er-1; tc=ec; }   // tile above slides down
+  if (dir==='left')  { tr=er;   tc=ec+1; } // tile right slides left
+  if (dir==='right') { tr=er;   tc=ec-1; } // tile left slides right
+
+  if (tr<0||tr>=4||tc<0||tc>=4) return;
+  slideTile(tr, tc);
+});
+
+initGame();
+</script>
+</body>
+</html>

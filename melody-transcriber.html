@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Melody Transcriber</title>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #FAF8F5;
+    --bg-card: #FFFFFF;
+    --text: #1A1A1A;
+    --text-muted: #6B6560;
+    --accent: #C44B2B;
+    --accent-glow: #E8704F;
+    --accent-soft: #FCEEE9;
+    --border: #E6E0DA;
+    --success: #3A8A5C;
+    --success-soft: #E8F5ED;
+    --beat-ring: #C44B2B;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem 0 1rem;
+  }
+
+  .header-logo {
+    height: 60px;
+    width: auto;
+    margin-bottom: 0.5rem;
+  }
+
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 0.35rem;
+  }
+
+  header p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 300;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow);
+  }
+
+  .card-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  .step-num {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+
+  /* Settings row */
+  .settings-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .setting-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .setting-group label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  select {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+  }
+
+  select:focus { border-color: var(--accent); }
+
+  /* Calibration */
+  .calibrate-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .cal-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.9rem;
+    border: 1.5px solid var(--accent);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .cal-btn:hover { background: var(--accent-soft); }
+
+  .cal-btn.listening {
+    background: var(--accent);
+    color: white;
+    animation: pulse-ring 1.5s ease infinite;
+  }
+
+  .cal-status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .cal-status .freq { color: var(--text); font-weight: 500; }
+  .cal-status .ok { color: var(--success); }
+
+  /* Tap tempo area */
+  .tap-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .tap-btn {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    background: var(--bg);
+    color: var(--accent);
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .tap-btn:active, .tap-btn.flash {
+    background: var(--accent);
+    color: white;
+    transform: scale(0.96);
+  }
+
+  .tap-btn::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    transform: scale(1);
+  }
+
+  .tap-btn.flash::after {
+    opacity: 0.4;
+    transform: scale(1.1);
+  }
+
+  .tempo-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 120px;
+    text-align: center;
+  }
+
+  .tempo-display small {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    display: block;
+    margin-top: 0.15rem;
+    letter-spacing: 0.06em;
+  }
+
+  .or-clap {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  /* Record button */
+  .record-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .record-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    background: var(--bg);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+  }
+
+  .record-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.2s ease;
+  }
+
+  .record-btn.recording {
+    border-color: var(--accent-glow);
+    animation: pulse-ring 1.5s ease infinite;
+  }
+
+  .record-btn.recording::after {
+    border-radius: 4px;
+    width: 22px;
+    height: 22px;
+    background: var(--accent-glow);
+  }
+
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(196,75,43,0.3); }
+    50% { box-shadow: 0 0 0 10px rgba(196,75,43,0); }
+  }
+
+  .record-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .record-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .record-label.active { color: var(--accent); font-weight: 500; }
+
+  /* Metronome */
+  .metronome {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    margin-bottom: 0.25rem;
+  }
+
+  .met-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    transition: transform 0.08s ease;
+    position: relative;
+  }
+
+  .met-dot.beat-one {
+    width: 24px;
+    height: 24px;
+    border-width: 2.5px;
+  }
+
+  .met-dot.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.25);
+    box-shadow: 0 0 12px rgba(196,75,43,0.4);
+  }
+
+  .met-dot.beat-one.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.35);
+    box-shadow: 0 0 18px rgba(196,75,43,0.5);
+  }
+
+  .met-dot.past {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+  }
+
+  .met-beat-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .met-dot.active .met-beat-num {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Live pitch */
+  .live-pitch {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.4rem;
+    text-align: center;
+    color: var(--text);
+    min-height: 2.2rem;
+    line-height: 2.2rem;
+  }
+
+  .live-pitch .hz {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: 0.3rem;
+  }
+
+  /* Score output */
+  .score-area {
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  .score-area.has-score {
+    display: block;
+  }
+
+  .score-area svg { width: 100%; }
+
+  .abc-output {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-top: 1rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    position: relative;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Status messages */
+  .status {
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    padding: 0.5rem;
+    min-height: 2rem;
+  }
+
+  .status.error { color: var(--accent); }
+  .status.ok { color: var(--success); }
+
+  /* Reset button */
+  .reset-row {
+    text-align: center;
+    margin-top: 0.5rem;
+  }
+
+  .reset-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.4rem 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    body { padding: 1rem 0.75rem; }
+    header h1 { font-size: 1.5rem; }
+    .tap-btn { width: 110px; height: 110px; font-size: 0.9rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <img src="data:image/jpeg;base64,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" alt="Music at Westfield" class="header-logo">
+    <h1>Melody Transcriber</h1>
+    <p>Tap the beat, then sing your tune</p>
+  </header>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">⚙</span> Settings</div>
+    <div class="settings-row">
+      <div class="setting-group">
+        <label>Time sig</label>
+        <select id="timeSig">
+          <option value="4/4">4/4</option>
+          <option value="3/4">3/4</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label>Clap detect</label>
+        <select id="clapMode">
+          <option value="button">Button tap</option>
+          <option value="mic">Mic clap</option>
+        </select>
+      </div>
+    </div>
+    <div class="calibrate-row">
+      <button class="cal-btn" id="calBtn">🎹 Calibrate</button>
+      <span class="cal-status" id="calStatus">Play middle C to tune (default A=440)</span>
+    </div>
+  </div>
+
+  <!-- Step 1: Tap tempo -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">1</span> Set the beat</div>
+    <div class="tap-area">
+      <div class="tempo-display" id="tempoDisplay">— <small>BPM</small></div>
+      <button class="tap-btn" id="tapBtn">TAP</button>
+      <div class="or-clap" id="orClap">or switch to mic clap detection above</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Record melody -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">2</span> Sing your melody</div>
+    <div class="record-section">
+      <div class="metronome" id="metronome"></div>
+      <div class="live-pitch" id="livePitch"></div>
+      <button class="record-btn" id="recordBtn" disabled></button>
+      <div class="record-label" id="recordLabel">Set tempo first</div>
+    </div>
+  </div>
+
+  <!-- Step 3: Score -->
+  <div class="card">
+    <div class="card-title"><span class="step-num">3</span> Score</div>
+    <div class="score-area" id="scoreArea">Waiting for melody…</div>
+    <div class="abc-output" id="abcOutput" style="display:none">
+      <button class="copy-btn" id="copyBtn">COPY</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="reset-row">
+    <button class="reset-btn" id="resetBtn">↻ Start over</button>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────
+const state = {
+  tapTimes: [],
+  bpm: 0,
+  beatMs: 0,
+  recording: false,
+  audioCtx: null,
+  analyser: null,
+  micStream: null,
+  detectedNotes: [],  // {freq, startTime, endTime}
+  currentNote: null,
+  recordStartTime: 0,
+  rafId: null,
+  clapMode: 'button',
+  metInterval: null,
+  metBeat: 0,
+  a4Freq: 440, // tuning reference, adjusted by calibration
+};
+
+// ─── Elements ────────────────────────────────────────────────────────
+const tapBtn = document.getElementById('tapBtn');
+const tempoDisplay = document.getElementById('tempoDisplay');
+const recordBtn = document.getElementById('recordBtn');
+const recordLabel = document.getElementById('recordLabel');
+const livePitch = document.getElementById('livePitch');
+const scoreArea = document.getElementById('scoreArea');
+const abcOutput = document.getElementById('abcOutput');
+const copyBtn = document.getElementById('copyBtn');
+const statusEl = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const timeSigSel = document.getElementById('timeSig');
+const clapModeSel = document.getElementById('clapMode');
+const orClap = document.getElementById('orClap');
+const metronomeEl = document.getElementById('metronome');
+const calBtn = document.getElementById('calBtn');
+const calStatus = document.getElementById('calStatus');
+
+// ─── Metronome ───────────────────────────────────────────────────────
+function buildMetronomeDots() {
+  const beatsPerBar = timeSigSel.value === '3/4' ? 3 : 4;
+  metronomeEl.innerHTML = '';
+  for (let i = 0; i < beatsPerBar; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'met-dot' + (i === 0 ? ' beat-one' : '');
+    const num = document.createElement('span');
+    num.className = 'met-beat-num';
+    num.textContent = i + 1;
+    dot.appendChild(num);
+    metronomeEl.appendChild(dot);
+  }
+}
+
+function startMetronome() {
+  const beatsPerBar = timeSigSel.value === '3/4' ? 3 : 4;
+  buildMetronomeDots();
+  state.metBeat = 0;
+  tickMetronome(beatsPerBar);
+  state.metInterval = setInterval(() => tickMetronome(beatsPerBar), state.beatMs);
+}
+
+function tickMetronome(beatsPerBar) {
+  const dots = metronomeEl.querySelectorAll('.met-dot');
+  dots.forEach((d, i) => {
+    d.classList.remove('active', 'past');
+    if (i < state.metBeat % beatsPerBar) d.classList.add('past');
+  });
+  const current = state.metBeat % beatsPerBar;
+  if (dots[current]) dots[current].classList.add('active');
+  state.metBeat++;
+}
+
+function stopMetronome() {
+  if (state.metInterval) {
+    clearInterval(state.metInterval);
+    state.metInterval = null;
+  }
+  const dots = metronomeEl.querySelectorAll('.met-dot');
+  dots.forEach(d => d.classList.remove('active', 'past'));
+}
+
+// ─── Calibration ─────────────────────────────────────────────────────
+let calListening = false;
+let calRafId = null;
+let calSamples = [];
+
+calBtn.addEventListener('click', async () => {
+  if (calListening) {
+    stopCalibration();
+    return;
+  }
+  try {
+    await ensureAudio();
+  } catch (e) {
+    calStatus.textContent = 'Mic access denied';
+    return;
+  }
+  calListening = true;
+  calSamples = [];
+  calBtn.classList.add('listening');
+  calBtn.textContent = '⏹ Stop';
+  calStatus.innerHTML = 'Play and hold middle C…';
+  calibrationLoop();
+});
+
+function calibrationLoop() {
+  if (!calListening) return;
+  // Use raw 440-based detection for calibration
+  const origA4 = state.a4Freq;
+  state.a4Freq = 440; // temporarily use standard for raw freq
+  const freq = detectPitch(state.analyser, state.audioCtx.sampleRate);
+  state.a4Freq = origA4;
+
+  if (freq && freq > 200 && freq < 320) {
+    // Plausible middle C range (should be ~261.6 Hz at A=440)
+    calSamples.push(freq);
+    const avg = calSamples.reduce((a, b) => a + b, 0) / calSamples.length;
+    calStatus.innerHTML = `Hearing <span class="freq">${avg.toFixed(1)} Hz</span> (${calSamples.length} samples)`;
+  }
+
+  calRafId = requestAnimationFrame(calibrationLoop);
+}
+
+function stopCalibration() {
+  calListening = false;
+  if (calRafId) cancelAnimationFrame(calRafId);
+  calBtn.classList.remove('listening');
+  calBtn.textContent = '🎹 Calibrate';
+
+  if (calSamples.length < 10) {
+    calStatus.textContent = 'Not enough samples — try holding the note longer';
+    return;
+  }
+
+  // Sort and take the middle 60% to filter outliers
+  const sorted = [...calSamples].sort((a, b) => a - b);
+  const trim = Math.floor(sorted.length * 0.2);
+  const trimmed = sorted.slice(trim, sorted.length - trim);
+  const avgC4 = trimmed.reduce((a, b) => a + b, 0) / trimmed.length;
+
+  // Middle C at A=440 is 261.626 Hz
+  // If their C4 is avgC4, then their A4 = avgC4 * (440 / 261.626)
+  const newA4 = avgC4 * (440 / 261.626);
+  state.a4Freq = newA4;
+
+  calStatus.innerHTML = `<span class="ok">✓</span> Tuned: A = <span class="freq">${newA4.toFixed(1)} Hz</span> (C4 = ${avgC4.toFixed(1)} Hz)`;
+}
+
+// ─── Tap tempo ───────────────────────────────────────────────────────
+function handleTap() {
+  const now = performance.now();
+  state.tapTimes.push(now);
+  // Keep last 8 taps
+  if (state.tapTimes.length > 8) state.tapTimes.shift();
+
+  tapBtn.classList.add('flash');
+  setTimeout(() => tapBtn.classList.remove('flash'), 120);
+
+  if (state.tapTimes.length >= 2) {
+    const intervals = [];
+    for (let i = 1; i < state.tapTimes.length; i++) {
+      intervals.push(state.tapTimes[i] - state.tapTimes[i - 1]);
+    }
+    const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    state.beatMs = avgMs;
+    state.bpm = Math.round(60000 / avgMs);
+    tempoDisplay.innerHTML = `${state.bpm} <small>BPM</small>`;
+    recordBtn.disabled = false;
+    recordLabel.textContent = 'Press to record';
+    buildMetronomeDots();
+  }
+
+  // Reset if gap > 2.5 sec
+  if (state.tapTimes.length >= 2) {
+    const last2 = state.tapTimes.slice(-2);
+    if (last2[1] - last2[0] > 2500) {
+      state.tapTimes = [now];
+    }
+  }
+}
+
+tapBtn.addEventListener('mousedown', handleTap);
+tapBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleTap(); });
+
+// ─── Clap mode toggle ───────────────────────────────────────────────
+clapModeSel.addEventListener('change', () => {
+  state.clapMode = clapModeSel.value;
+  if (state.clapMode === 'mic') {
+    tapBtn.textContent = '🎤';
+    orClap.textContent = 'Clap loudly into your mic';
+    startClapDetection();
+  } else {
+    tapBtn.textContent = 'TAP';
+    orClap.textContent = 'or switch to mic clap detection above';
+    stopClapDetection();
+  }
+});
+
+let clapAnalyser = null;
+let clapRaf = null;
+let clapCooldown = false;
+
+async function startClapDetection() {
+  try {
+    if (!state.audioCtx) state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!state.micStream) {
+      state.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+    const source = state.audioCtx.createMediaStreamSource(state.micStream);
+    clapAnalyser = state.audioCtx.createAnalyser();
+    clapAnalyser.fftSize = 512;
+    source.connect(clapAnalyser);
+    detectClaps();
+  } catch (e) {
+    setStatus('Mic access denied', 'error');
+  }
+}
+
+function stopClapDetection() {
+  if (clapRaf) cancelAnimationFrame(clapRaf);
+  clapRaf = null;
+}
+
+function detectClaps() {
+  if (!clapAnalyser) return;
+  const buf = new Uint8Array(clapAnalyser.fftSize);
+  clapAnalyser.getByteTimeDomainData(buf);
+  let maxAmp = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const amp = Math.abs(buf[i] - 128);
+    if (amp > maxAmp) maxAmp = amp;
+  }
+  // Threshold for clap detection
+  if (maxAmp > 80 && !clapCooldown && !state.recording) {
+    clapCooldown = true;
+    handleTap();
+    setTimeout(() => { clapCooldown = false; }, 200);
+  }
+  clapRaf = requestAnimationFrame(detectClaps);
+}
+
+// ─── Audio setup ─────────────────────────────────────────────────────
+async function ensureAudio() {
+  if (!state.audioCtx) {
+    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (state.audioCtx.state === 'suspended') await state.audioCtx.resume();
+  if (!state.micStream) {
+    state.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }
+  const source = state.audioCtx.createMediaStreamSource(state.micStream);
+  state.analyser = state.audioCtx.createAnalyser();
+  state.analyser.fftSize = 4096;
+  source.connect(state.analyser);
+}
+
+// ─── YIN pitch detection ─────────────────────────────────────────────
+function detectPitch(analyser, sampleRate) {
+  const bufLen = analyser.fftSize;
+  const buf = new Float32Array(bufLen);
+  analyser.getFloatTimeDomainData(buf);
+
+  // Check RMS energy — if too quiet, return null
+  let rms = 0;
+  for (let i = 0; i < bufLen; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / bufLen);
+  if (rms < 0.015) return null;
+
+  // YIN-like autocorrelation
+  const halfLen = Math.floor(bufLen / 2);
+  const yinBuf = new Float32Array(halfLen);
+
+  // Difference function
+  for (let tau = 0; tau < halfLen; tau++) {
+    let sum = 0;
+    for (let i = 0; i < halfLen; i++) {
+      const diff = buf[i] - buf[i + tau];
+      sum += diff * diff;
+    }
+    yinBuf[tau] = sum;
+  }
+
+  // Cumulative mean normalized difference
+  yinBuf[0] = 1;
+  let runningSum = 0;
+  for (let tau = 1; tau < halfLen; tau++) {
+    runningSum += yinBuf[tau];
+    yinBuf[tau] = yinBuf[tau] * tau / runningSum;
+  }
+
+  // Absolute threshold (0.2 is a good default for YIN)
+  const threshold = 0.2;
+  let tauEstimate = -1;
+  // Start from period corresponding to ~1500 Hz
+  const minTau = Math.floor(sampleRate / 1500);
+  const maxTau = Math.floor(sampleRate / 55); // down to ~55 Hz
+
+  for (let tau = minTau; tau < Math.min(maxTau, halfLen); tau++) {
+    if (yinBuf[tau] < threshold) {
+      // Walk to the local minimum
+      while (tau + 1 < halfLen && yinBuf[tau + 1] < yinBuf[tau]) tau++;
+      tauEstimate = tau;
+      break;
+    }
+  }
+
+  if (tauEstimate === -1) return null;
+
+  // Parabolic interpolation
+  let betterTau = tauEstimate;
+  if (tauEstimate > 0 && tauEstimate < halfLen - 1) {
+    const s0 = yinBuf[tauEstimate - 1];
+    const s1 = yinBuf[tauEstimate];
+    const s2 = yinBuf[tauEstimate + 1];
+    betterTau = tauEstimate + (s0 - s2) / (2 * (s0 - 2 * s1 + s2));
+  }
+
+  return sampleRate / betterTau;
+}
+
+// ─── Note name / MIDI helpers ────────────────────────────────────────
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function freqToMidi(freq) {
+  return 69 + 12 * Math.log2(freq / state.a4Freq);
+}
+
+function midiToNoteName(midi) {
+  const noteIndex = ((Math.round(midi) % 12) + 12) % 12;
+  const octave = Math.floor(Math.round(midi) / 12) - 1;
+  return NOTE_NAMES[noteIndex] + octave;
+}
+
+function midiToAbc(midi, keySharps, keyFlats) {
+  const m = Math.round(midi);
+  const noteIndex = ((m % 12) + 12) % 12;
+  const octave = Math.floor(m / 12) - 1;
+
+  // Note indices: C=0, C#=1, D=2, D#=3, E=4, F=5, F#=6, G=7, G#=8, A=9, A#=10, B=11
+  //
+  // In ABC, key signature sharps/flats are implicit:
+  //   K:G means F is always F# unless you write =F
+  //   K:E means F,C,G,D are always sharp unless naturalized with =
+  //   So "F" in K:E means F#, and "=F" means F natural
+  //
+  // Our keySharps set contains the MIDI indices of the sharped notes (e.g. 6 for F#)
+  // Our keyFlats set contains the MIDI indices of the flatted notes (e.g. 10 for Bb)
+  
+  let noteName;
+  
+  // Map from sharp/flat note index to the letter it modifies
+  // F#(6)->F(5), C#(1)->C(0), G#(8)->G(7), D#(3)->D(2), A#(10)->A(9), E#(5)->E(4), B#(0)->B(11)
+  // Bb(10)->B(11), Eb(3)->E(4), Ab(8)->A(9), Db(1)->D(2), Gb(6)->G(7), Cb(11)->C(0), Fb(4)->F(5)
+  
+  const NATURAL_NAMES = ['C', '', 'D', '', 'E', 'F', '', 'G', '', 'A', '', 'B'];
+  
+  if (keySharps && keySharps.has(noteIndex)) {
+    // This note IS a key-signature sharp — write the plain letter name
+    // In ABC, "F" in K:G already means F#
+    // sharp note index -> base letter: subtract 1
+    const baseLetter = NATURAL_NAMES[(noteIndex - 1 + 12) % 12] 
+                    || NATURAL_NAMES[(noteIndex - 2 + 12) % 12]; // fallback
+    noteName = baseLetter;
+  } else if (keyFlats && keyFlats.has(noteIndex)) {
+    // This note IS a key-signature flat — write the plain letter name
+    // In ABC, "B" in K:F already means Bb
+    // flat note index -> base letter: add 1
+    const baseLetter = NATURAL_NAMES[(noteIndex + 1) % 12]
+                    || NATURAL_NAMES[(noteIndex + 2) % 12]; // fallback
+    noteName = baseLetter;
+  } else if (NATURAL_NAMES[noteIndex]) {
+    // It's a natural note (white key) — but check if the key sig
+    // would sharp or flat this letter, requiring a natural sign
+    const letterName = NATURAL_NAMES[noteIndex];
+    
+    // Would this letter be sharped by the key sig?
+    // e.g. in K:E, the letter F is sharped to F#(6), so plain F(5) needs '=F'
+    const sharpedIndex = (noteIndex + 1) % 12;
+    const flattedIndex = (noteIndex - 1 + 12) % 12;
+    
+    if (keySharps && keySharps.has(sharpedIndex)) {
+      noteName = '=' + letterName; // natural cancels the key sig sharp
+    } else if (keyFlats && keyFlats.has(flattedIndex)) {
+      noteName = '=' + letterName; // natural cancels the key sig flat
+    } else {
+      noteName = letterName;
+    }
+  } else {
+    // It's a chromatic note (black key) NOT in the key signature
+    // Use explicit accidental
+    // Prefer sharps for sharp keys, flats for flat keys
+    if (keyFlats && keyFlats.size > 0) {
+      // Flat key — write as flat: e.g. Bb = _B, Eb = _E
+      const above = NATURAL_NAMES[(noteIndex + 1) % 12];
+      noteName = above ? ('_' + above) : ('^' + NATURAL_NAMES[(noteIndex - 1 + 12) % 12]);
+    } else {
+      // Sharp key or C — write as sharp
+      const below = NATURAL_NAMES[(noteIndex - 1 + 12) % 12];
+      noteName = below ? ('^' + below) : ('_' + NATURAL_NAMES[(noteIndex + 1) % 12]);
+    }
+  }
+
+  if (octave >= 5) {
+    const prefix = noteName.match(/^[\^_=]*/)[0];
+    const letter = noteName.slice(prefix.length);
+    noteName = prefix + letter.toLowerCase();
+    const extraOctaves = octave - 5;
+    noteName += "'".repeat(extraOctaves);
+  } else if (octave === 4) {
+    // default register for ABC
+  } else {
+    const below = 4 - octave;
+    noteName += ",".repeat(below);
+  }
+
+  return noteName;
+}
+
+// ─── Key detection (from tonic) ──────────────────────────────────────
+// Returns {name, sharps, flats} where sharps/flats are Sets of MIDI note indices (0-11)
+// that are raised/lowered by the key signature
+
+// Sharps order: F C G D A E B
+// Flats order: B E A D G C F
+const KEY_SIGNATURES = {
+  // Major keys
+  'C':  { sharps: [], flats: [] },
+  'G':  { sharps: [6], flats: [] },          // F#
+  'D':  { sharps: [6, 1], flats: [] },       // F# C#
+  'A':  { sharps: [6, 1, 8], flats: [] },    // F# C# G#
+  'E':  { sharps: [6, 1, 8, 3], flats: [] }, // F# C# G# D#
+  'B':  { sharps: [6, 1, 8, 3, 10], flats: [] }, // F# C# G# D# A#
+  'F#': { sharps: [6, 1, 8, 3, 10, 5], flats: [] }, // + E#
+  'C#': { sharps: [6, 1, 8, 3, 10, 5, 0], flats: [] }, // + B#
+  'F':  { sharps: [], flats: [10] },          // Bb
+  'Bb': { sharps: [], flats: [10, 3] },       // Bb Eb
+  'Eb': { sharps: [], flats: [10, 3, 8] },    // Bb Eb Ab
+  'Ab': { sharps: [], flats: [10, 3, 8, 1] }, // Bb Eb Ab Db
+  'Db': { sharps: [], flats: [10, 3, 8, 1, 6] }, // + Gb
+  'Gb': { sharps: [], flats: [10, 3, 8, 1, 6, 11] }, // + Cb
+  // Minor keys (relative minors share the same key signature)
+  'Am':  { sharps: [], flats: [] },
+  'Em':  { sharps: [6], flats: [] },          // F#
+  'Bm':  { sharps: [6, 1], flats: [] },       // F# C#
+  'F#m': { sharps: [6, 1, 8], flats: [] },    // F# C# G#
+  'C#m': { sharps: [6, 1, 8, 3], flats: [] }, // F# C# G# D#
+  'G#m': { sharps: [6, 1, 8, 3, 10], flats: [] },
+  'Dm':  { sharps: [], flats: [10] },          // Bb
+  'Gm':  { sharps: [], flats: [10, 3] },       // Bb Eb
+  'Cm':  { sharps: [], flats: [10, 3, 8] },    // Bb Eb Ab
+  'Fm':  { sharps: [], flats: [10, 3, 8, 1] }, // Bb Eb Ab Db
+  'Bbm': { sharps: [], flats: [10, 3, 8, 1, 6] },
+  'Ebm': { sharps: [], flats: [10, 3, 8, 1, 6, 11] },
+};
+
+function inferKey(tonicMidi, allNotes) {
+  const noteIndex = ((Math.round(tonicMidi) % 12) + 12) % 12;
+  
+  // Determine major vs minor by looking at the 3rd scale degree
+  // Major 3rd = 4 semitones above tonic, Minor 3rd = 3 semitones
+  const major3rd = (noteIndex + 4) % 12;
+  const minor3rd = (noteIndex + 3) % 12;
+  
+  let major3count = 0;
+  let minor3count = 0;
+  
+  if (allNotes) {
+    for (const note of allNotes) {
+      const ni = ((note.midi % 12) + 12) % 12;
+      if (ni === major3rd) major3count++;
+      if (ni === minor3rd) minor3count++;
+    }
+  }
+  
+  const isMinor = minor3count > major3count;
+  
+  const majorKeys = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+  const minorKeys = ['Cm','C#m','Dm','Ebm','Em','Fm','F#m','Gm','G#m','Am','Bbm','Bm'];
+  
+  const keyName = isMinor ? minorKeys[noteIndex] : majorKeys[noteIndex];
+  const sig = KEY_SIGNATURES[keyName] || { sharps: [], flats: [] };
+  return {
+    name: keyName,
+    sharps: new Set(sig.sharps),
+    flats: new Set(sig.flats),
+  };
+}
+
+// ─── Recording loop ──────────────────────────────────────────────────
+// Energy tracking for onset detection
+let prevRms = 0;
+let rmsHistory = [];
+const RMS_HISTORY_LEN = 5;
+
+// Pitch stability tracking: confirm a new pitch over several frames
+let candidateMidi = null;
+let candidateCount = 0;
+const CONFIRM_FRAMES_STEP = 2;  // stepwise motion (1-4 semitones)
+const CONFIRM_FRAMES_LARGE = 5; // large jumps (5+ semitones)
+
+// Re-attack detection: track energy dips for repeated same-pitch notes
+let recentRmsMin = Infinity;  // minimum RMS since current note started
+let recentRmsMax = 0;         // tracks current rising energy
+let dipDetected = false;       // true once we've seen a significant dip
+
+function getRms(analyser) {
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+  return Math.sqrt(sum / buf.length);
+}
+
+function recordingLoop() {
+  if (!state.recording) return;
+
+  const freq = detectPitch(state.analyser, state.audioCtx.sampleRate);
+  const now = performance.now();
+  const elapsed = now - state.recordStartTime;
+
+  // Track RMS energy for onset detection
+  const rms = getRms(state.analyser);
+  rmsHistory.push(rms);
+  if (rmsHistory.length > RMS_HISTORY_LEN) rmsHistory.shift();
+  const avgRms = rmsHistory.reduce((a, b) => a + b, 0) / rmsHistory.length;
+  
+  // Strong onset: big energy spike (loud key strike)
+  const isStrongOnset = rms > 0.03 && rms > prevRms * 1.8 && rms > avgRms * 1.5;
+  // Soft onset: smaller energy bump — catches softer keystrikes like ring finger
+  // Requires pitch to also be different from current note
+  const isSoftOnset = rms > 0.02 && rms > prevRms * 1.3 && rms > avgRms * 1.15;
+  
+  prevRms = rms;
+
+  const silenceThreshold = 0.012;
+
+  if (freq && freq > 60 && freq < 1500 && rms > silenceThreshold) {
+    const midi = freqToMidi(freq);
+    const rounded = Math.round(midi);
+    const name = midiToNoteName(midi);
+    livePitch.innerHTML = `${name} <span class="hz">${Math.round(freq)} Hz</span>`;
+
+    if (state.currentNote) {
+      // Use continuous (non-rounded) MIDI for finer same-note detection
+      const continuousMidi = midi; // not rounded
+      const continuousDiff = Math.abs(continuousMidi - state.currentNote.midi);
+      const diff = Math.abs(rounded - state.currentNote.midi);
+      
+      // Octave jump detection: exactly ~12 semitones apart
+      const isOctaveJump = (diff >= 11 && diff <= 13);
+      // Harmonic jump: fifths (7 semitones) or other large intervals
+      const isLargeJump = diff >= 5;
+      
+      if (continuousDiff < 0.6) {
+        // Same pitch — but check for re-attack (repeated note)
+        const noteAge = elapsed - state.currentNote.startTime;
+        
+        // Track energy envelope for re-attack detection
+        if (noteAge > 80) { // don't check during initial attack
+          if (rms < recentRmsMin) {
+            recentRmsMin = rms;
+          }
+          // Detect dip: energy fell significantly from peak
+          if (state.currentNote.peakRms > 0 && 
+              recentRmsMin < state.currentNote.peakRms * 0.4) {
+            dipDetected = true;
+          }
+          // Detect re-attack: energy rising again after a dip
+          if (dipDetected && rms > recentRmsMin * 1.8 && rms > 0.02 && noteAge > 150) {
+            // Re-attack detected — same pitch played again
+            finalizeNote(state.currentNote);
+            state.currentNote = {
+              midi: rounded,
+              freqSum: freq,
+              freqCount: 1,
+              startTime: elapsed,
+              endTime: elapsed,
+              peakRms: rms,
+              _silenceStart: null,
+            };
+            recentRmsMin = Infinity;
+            recentRmsMax = 0;
+            dipDetected = false;
+            candidateMidi = null;
+            candidateCount = 0;
+          } else {
+            // No re-attack, just extend
+            state.currentNote.endTime = elapsed;
+            state.currentNote.freqSum += freq;
+            state.currentNote.freqCount++;
+            state.currentNote._silenceStart = null;
+            candidateMidi = null;
+            candidateCount = 0;
+          }
+        } else {
+          // Still in initial attack phase, just extend
+          state.currentNote.endTime = elapsed;
+          state.currentNote.freqSum += freq;
+          state.currentNote.freqCount++;
+          state.currentNote._silenceStart = null;
+          // Track peak energy during attack
+          if (rms > state.currentNote.peakRms) {
+            state.currentNote.peakRms = rms;
+          }
+        }
+      } else if (isOctaveJump && !isStrongOnset) {
+        // Octave jump without strong energy spike — harmonic
+        candidateMidi = null;
+        candidateCount = 0;
+      } else if (isStrongOnset || (isSoftOnset && continuousDiff >= 0.6 && diff <= 4)) {
+        // Energy spike + pitch change — accept new note immediately
+        // Soft onset only accepted for stepwise motion (not large jumps)
+        finalizeNote(state.currentNote);
+        state.currentNote = {
+          midi: rounded,
+          freqSum: freq,
+          freqCount: 1,
+          startTime: elapsed,
+          endTime: elapsed,
+          peakRms: rms,
+          _silenceStart: null,
+        };
+        recentRmsMin = Infinity;
+        dipDetected = false;
+        candidateMidi = null;
+        candidateCount = 0;
+      } else {
+        // Pitch changed without energy spike — could be legato new note
+        // or harmonic artifact. Use stability confirmation.
+        if (isLargeJump && !isStrongOnset) {
+          // Large non-octave jump without onset — likely harmonic, 
+          // but still track as candidate in case it's real
+          if (candidateMidi !== null && Math.abs(rounded - candidateMidi) <= 1) {
+            candidateCount++;
+          } else {
+            candidateMidi = rounded;
+            candidateCount = 1;
+          }
+          // Require more frames for large jumps
+          if (candidateCount >= CONFIRM_FRAMES_LARGE) {
+            finalizeNote(state.currentNote);
+            state.currentNote = {
+              midi: rounded,
+              freqSum: freq,
+              freqCount: 1,
+              startTime: elapsed - (candidateCount * 16), // backdate
+              endTime: elapsed,
+              peakRms: rms,
+              _silenceStart: null,
+            };
+            recentRmsMin = Infinity;
+            dipDetected = false;
+            candidateMidi = null;
+            candidateCount = 0;
+          }
+        } else {
+          // Small interval change (stepwise motion, 2-4 semitones)
+          // Track candidate and confirm over a few frames
+          if (candidateMidi !== null && Math.abs(rounded - candidateMidi) <= 1) {
+            candidateCount++;
+          } else {
+            candidateMidi = rounded;
+            candidateCount = 1;
+          }
+          if (candidateCount >= CONFIRM_FRAMES_STEP) {
+            // Confirmed: new note via stable pitch change
+            finalizeNote(state.currentNote);
+            state.currentNote = {
+              midi: candidateMidi,
+              freqSum: freq,
+              freqCount: 1,
+              startTime: elapsed - (candidateCount * 16), // backdate slightly
+              endTime: elapsed,
+              peakRms: rms,
+              _silenceStart: null,
+            };
+            recentRmsMin = Infinity;
+            dipDetected = false;
+            candidateMidi = null;
+            candidateCount = 0;
+          }
+        }
+      }
+    } else {
+      // First note or after silence
+      state.currentNote = {
+        midi: rounded,
+        freqSum: freq,
+        freqCount: 1,
+        startTime: elapsed,
+        endTime: elapsed,
+        peakRms: rms,
+        _silenceStart: null,
+      };
+      recentRmsMin = Infinity;
+      dipDetected = false;
+      candidateMidi = null;
+      candidateCount = 0;
+    }
+  } else {
+    // Silence or below threshold
+    livePitch.innerHTML = `<span class="hz">—</span>`;
+    candidateMidi = null;
+    candidateCount = 0;
+    if (state.currentNote) {
+      if (!state.currentNote._silenceStart) {
+        state.currentNote._silenceStart = elapsed;
+      } else if (elapsed - state.currentNote._silenceStart > 150) {
+        // Sustained silence — end the note
+        state.currentNote.endTime = state.currentNote._silenceStart;
+        finalizeNote(state.currentNote);
+        state.currentNote = null;
+      }
+    }
+  }
+
+  state.rafId = requestAnimationFrame(recordingLoop);
+}
+
+function finalizeNote(note) {
+  const duration = note.endTime - note.startTime;
+  if (duration < 120) return; // filter out very short glitches
+  const avgFreq = note.freqSum / note.freqCount;
+  const avgMidi = freqToMidi(avgFreq);
+  state.detectedNotes.push({
+    midi: Math.round(avgMidi),
+    startTime: note.startTime,
+    endTime: note.endTime,
+    durationMs: duration,
+  });
+}
+
+// ─── Quantize & generate ABC ─────────────────────────────────────────
+function quantizeAndGenerateABC() {
+  const notes = state.detectedNotes;
+  if (notes.length === 0) {
+    setStatus('No notes detected — try again', 'error');
+    return null;
+  }
+
+  const beatMs = state.beatMs;
+  const timeSig = timeSigSel.value;
+  const beatsPerBar = timeSig === '3/4' ? 3 : 4;
+
+  // Determine the tonic from the first note
+  const tonicMidi = notes[0].midi;
+  const keyInfo = inferKey(tonicMidi, notes);
+  const keyName = keyInfo.name;
+  const keySharps = keyInfo.sharps;
+  const keyFlats = keyInfo.flats;
+
+  // Quantize durations to beat fractions: 0.5 = eighth, 1 = quarter, 1.5 = dotted quarter, 2 = half, 3 = dotted half
+  const allowedBeatFracs = [0.5, 1, 1.5, 2, 3, 4];
+
+  const quantized = [];
+  for (const note of notes) {
+    const beats = note.durationMs / beatMs;
+    // Find closest allowed fraction
+    let best = allowedBeatFracs[0];
+    let bestDist = Math.abs(beats - best);
+    for (const f of allowedBeatFracs) {
+      const d = Math.abs(beats - f);
+      if (d < bestDist) { bestDist = d; best = f; }
+    }
+    quantized.push({ midi: note.midi, beats: best });
+  }
+
+  // Also detect rests between notes
+  const withRests = [];
+  for (let i = 0; i < notes.length; i++) {
+    if (i > 0) {
+      const gap = notes[i].startTime - notes[i - 1].endTime;
+      const gapBeats = gap / beatMs;
+      if (gapBeats >= 0.35) {
+        // Insert a rest
+        let restBeats = allowedBeatFracs[0];
+        let bestDist = Math.abs(gapBeats - restBeats);
+        for (const f of allowedBeatFracs) {
+          const d = Math.abs(gapBeats - f);
+          if (d < bestDist) { bestDist = d; restBeats = f; }
+        }
+        withRests.push({ rest: true, beats: restBeats });
+      }
+    }
+    withRests.push(quantized[i]);
+  }
+
+  // Build ABC string
+  // Duration mapping: quarter note = 1 in ABC default (L:1/4)
+  function beatToAbcDur(beats) {
+    // With L:1/8, one unit = eighth note
+    // quarter = 2, half = 4, eighth = 1, dotted quarter = 3, dotted half = 6, whole = 8
+    const units = beats * 2; // convert quarter-note beats to eighth-note units
+    if (units === 1) return '';
+    if (units === 2) return '2';
+    if (units === 3) return '3';
+    if (units === 4) return '4';
+    if (units === 6) return '6';
+    if (units === 8) return '8';
+    return String(Math.round(units));
+  }
+
+  let melody = '';
+  let beatsInBar = 0;
+
+  for (const item of withRests) {
+    let token;
+    if (item.rest) {
+      token = 'z' + beatToAbcDur(item.beats);
+    } else {
+      const abcNote = midiToAbc(item.midi, keySharps, keyFlats);
+      token = abcNote + beatToAbcDur(item.beats);
+    }
+
+    beatsInBar += item.beats;
+    melody += token + ' ';
+
+    if (beatsInBar >= beatsPerBar) {
+      melody += '| ';
+      beatsInBar = beatsInBar - beatsPerBar;
+    }
+  }
+
+  // Trim trailing bar line if melody ends with one
+  melody = melody.trim().replace(/\|\s*$/, '|]');
+  if (!melody.endsWith('|]')) melody += ' |]';
+
+  const abc = `X:1
+T:Transcription
+M:${timeSig}
+L:1/8
+Q:1/4=${state.bpm}
+K:${keyName}
+${melody}`;
+
+  return abc;
+}
+
+// ─── Record toggle ───────────────────────────────────────────────────
+recordBtn.addEventListener('click', async () => {
+  if (!state.recording) {
+    // Start
+    try {
+      await ensureAudio();
+    } catch (e) {
+      setStatus('Microphone access denied', 'error');
+      return;
+    }
+    state.recording = true;
+    state.detectedNotes = [];
+    state.currentNote = null;
+    state.recordStartTime = performance.now();
+    prevRms = 0;
+    rmsHistory = [];
+    candidateMidi = null;
+    candidateCount = 0;
+    recentRmsMin = Infinity;
+    dipDetected = false;
+    recordBtn.classList.add('recording');
+    recordLabel.textContent = 'Listening… press to stop';
+    recordLabel.classList.add('active');
+    setStatus('Sing your melody now — start on the tonic!', 'ok');
+    startMetronome();
+    recordingLoop();
+  } else {
+    // Stop
+    state.recording = false;
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    recordBtn.classList.remove('recording');
+    recordLabel.textContent = 'Press to record';
+    recordLabel.classList.remove('active');
+    livePitch.innerHTML = '';
+    stopMetronome();
+
+    // Finalize any hanging note
+    if (state.currentNote) {
+      state.currentNote.endTime = performance.now() - state.recordStartTime;
+      finalizeNote(state.currentNote);
+      state.currentNote = null;
+    }
+
+    setStatus('Processing…');
+    // Small delay for UX
+    setTimeout(() => {
+      const abc = quantizeAndGenerateABC();
+      if (abc) {
+        renderScore(abc);
+        setStatus(`Transcribed ${state.detectedNotes.length} notes`, 'ok');
+      }
+    }, 200);
+  }
+});
+
+// ─── Render score ────────────────────────────────────────────────────
+function renderScore(abc) {
+  scoreArea.classList.add('has-score');
+  scoreArea.innerHTML = '';
+  const div = document.createElement('div');
+  div.id = 'notation';
+  scoreArea.appendChild(div);
+  ABCJS.renderAbc('notation', abc, {
+    responsive: 'resize',
+    staffwidth: 680,
+    paddingtop: 10,
+    paddingbottom: 10,
+  });
+
+  abcOutput.style.display = 'block';
+  abcOutput.textContent = abc;
+  // Re-add copy button
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'COPY';
+  btn.onclick = () => {
+    navigator.clipboard.writeText(abc).then(() => {
+      btn.textContent = 'COPIED';
+      setTimeout(() => { btn.textContent = 'COPY'; }, 1500);
+    });
+  };
+  abcOutput.appendChild(btn);
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ` ${type}` : '');
+}
+
+resetBtn.addEventListener('click', () => {
+  state.tapTimes = [];
+  state.bpm = 0;
+  state.beatMs = 0;
+  state.detectedNotes = [];
+  state.currentNote = null;
+  state.recording = false;
+  if (state.rafId) cancelAnimationFrame(state.rafId);
+  stopMetronome();
+  metronomeEl.innerHTML = '';
+  recordBtn.classList.remove('recording');
+  recordBtn.disabled = true;
+  recordLabel.textContent = 'Set tempo first';
+  recordLabel.classList.remove('active');
+  tempoDisplay.innerHTML = '— <small>BPM</small>';
+  livePitch.innerHTML = '';
+  scoreArea.classList.remove('has-score');
+  scoreArea.innerHTML = 'Waiting for melody…';
+  abcOutput.style.display = 'none';
+  setStatus('');
+});
+
+timeSigSel.addEventListener('change', () => {
+  if (state.bpm > 0) buildMetronomeDots();
+});
+
+// Keyboard shortcut: space bar for tap
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !state.recording && document.activeElement.tagName !== 'SELECT') {
+    e.preventDefault();
+    handleTap();
+  }
+});
+</script>
+</body>
+</html>

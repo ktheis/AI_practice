@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Fluency Card Sorter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #f5f0e8;
+    --surface: #fdfaf4;
+    --ink: #1a1612;
+    --ink-light: #6b6057;
+    --accent: #c8401a;
+    --accent2: #2d6b4a;
+    --accent3: #2a4d8c;
+    --accent4: #7a3b8c;
+    --accent5: #8c6b1a;
+    --accent6: #1a6b6b;
+    --accent7: #8c1a3b;
+    --rule: #d4ccc0;
+    --card-shadow: 2px 3px 8px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+    --card-shadow-drag: 6px 10px 24px rgba(0,0,0,0.22);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(180,160,130,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(180,160,130,0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  header h1 span {
+    color: #e8a87c;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: transparent;
+    color: var(--bg);
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 2px;
+  }
+
+  .btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.6); }
+  .btn.active { background: var(--accent); border-color: var(--accent); }
+
+  .view-toggle {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.08);
+    padding: 3px;
+    border-radius: 3px;
+  }
+
+  .view-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    color: rgba(245,240,232,0.6);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .view-btn.active { background: rgba(255,255,255,0.18); color: var(--bg); }
+
+  /* FLOOR VIEW */
+  #floor-view {
+    position: relative;
+    width: 100%;
+    min-height: calc(100vh - 56px);
+    padding: 32px;
+    z-index: 1;
+  }
+
+  .floor-card {
+    position: absolute;
+    width: 180px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--cat-color, #999);
+    border-radius: 2px;
+    padding: 10px 12px;
+    cursor: grab;
+    user-select: none;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 0.15s, transform 0.15s;
+    z-index: 2;
+  }
+
+  .floor-card:hover { box-shadow: var(--card-shadow-drag); transform: translateY(-1px); }
+  .floor-card.dragging { 
+    cursor: grabbing; 
+    box-shadow: var(--card-shadow-drag); 
+    z-index: 1000;
+    transform: rotate(1.5deg) scale(1.03);
+  }
+
+  .floor-card .card-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--cat-color, #999);
+    font-weight: 500;
+    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .floor-card .card-text {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--ink);
+    font-weight: 400;
+  }
+
+  .floor-card .card-cat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    color: var(--ink-light);
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  /* GROUP VIEW */
+  #group-view {
+    display: none;
+    padding: 32px;
+    z-index: 1;
+    position: relative;
+  }
+
+  .group-view-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 28px;
+  }
+
+  .group-section {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 4px solid var(--cat-color, #999);
+    border-radius: 2px;
+    padding: 0;
+    box-shadow: 1px 2px 6px rgba(0,0,0,0.07);
+  }
+
+  .group-section-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .group-section-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .cat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--cat-color, #999);
+  }
+
+  .group-card-list {
+    padding: 8px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .group-card-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    transition: background 0.12s;
+  }
+
+  .group-card-item:hover { background: rgba(0,0,0,0.03); border-color: var(--rule); }
+
+  .group-card-item .item-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--cat-color, #999);
+    font-weight: 500;
+    padding-top: 1px;
+    flex-shrink: 0;
+    letter-spacing: 0.03em;
+  }
+
+  .group-card-item .item-text {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  /* TREE VIEW */
+  #tree-view {
+    display: none;
+    padding: 32px;
+    z-index: 1;
+    position: relative;
+  }
+
+  .tree-container {
+    overflow-x: auto;
+    padding-bottom: 24px;
+  }
+
+  .tree-inner {
+    min-width: 900px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+  }
+
+  .tree-trunk {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--ink);
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    max-width: 600px;
+  }
+
+  .tree-trunk h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    margin-bottom: 10px;
+    color: var(--ink);
+  }
+
+  .trunk-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .trunk-item {
+    display: flex;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--ink-light);
+    padding: 3px 0;
+  }
+
+  .trunk-item .ti-num { color: var(--ink); font-weight: 500; }
+
+  .branches-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+  }
+
+  .branch {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 4px solid var(--cat-color, #999);
+    padding: 14px 16px;
+  }
+
+  .branch h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    color: var(--ink);
+  }
+
+  .branch-item {
+    display: flex;
+    gap: 8px;
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    padding: 3px 0;
+    line-height: 1.4;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+  }
+
+  .branch-item:last-child { border-bottom: none; }
+  .branch-item .bi-num { color: var(--cat-color, #999); font-weight: 500; flex-shrink: 0; }
+
+  /* Search */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 2px;
+    padding: 0 10px;
+  }
+
+  .search-bar input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    width: 160px;
+    padding: 5px 0;
+    letter-spacing: 0.03em;
+  }
+
+  .search-bar input::placeholder { color: rgba(245,240,232,0.4); }
+
+  .search-icon { color: rgba(245,240,232,0.5); font-size: 0.8rem; }
+
+  /* Highlight */
+  .highlight { background: #ffe066; border-radius: 2px; padding: 0 1px; }
+
+  .floor-card.dimmed { opacity: 0.25; }
+  .group-card-item.dimmed { opacity: 0.2; }
+
+  /* Category legend */
+  .legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 32px;
+    border-bottom: 1px solid var(--rule);
+    background: rgba(245,240,232,0.7);
+    position: relative;
+    z-index: 1;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-light);
+    cursor: pointer;
+    padding: 3px 7px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    transition: all 0.12s;
+    text-transform: uppercase;
+  }
+
+  .legend-item:hover { border-color: var(--rule); background: white; }
+  .legend-item.active { border-color: var(--cat-color); background: white; color: var(--ink); }
+
+  .legend-swatch {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--cat-color);
+    flex-shrink: 0;
+  }
+
+  /* Card count badge */
+  .count-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    background: rgba(255,255,255,0.15);
+    color: var(--bg);
+    padding: 2px 7px;
+    border-radius: 10px;
+  }
+
+  /* Reset positions btn */
+  #reset-btn { }
+
+  /* Scroll hint */
+  .scroll-hint {
+    position: fixed;
+    bottom: 20px;
+    right: 24px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--ink-light);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 6px 12px;
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0.8;
+    z-index: 50;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LLM Fluency <span>Card Sorter</span></h1>
+  <div class="header-controls">
+    <div class="search-bar">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="search-input" placeholder="Search cards…">
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" onclick="setView('floor')">Floor</button>
+      <button class="view-btn" onclick="setView('group')">Grouped</button>
+      <button class="view-btn" onclick="setView('tree')">Tree</button>
+    </div>
+    <button class="btn" id="reset-btn" onclick="resetPositions()">Reset Layout</button>
+    <button class="btn" onclick="exportLayout()">Export Layout</button>
+    <button class="btn" onclick="importLayout()">Import Layout</button>
+    <span class="count-badge">56 cards</span>
+  </div>
+</header>
+
+<div class="legend" id="legend"></div>
+
+<div id="floor-view"></div>
+<div id="group-view"></div>
+<div id="tree-view"></div>
+
+<div class="scroll-hint" id="scroll-hint">Drag cards to arrange · Scroll to explore</div>
+
+<script>
+const CATS = [
+  { id: 'core',       label: 'Core Interaction',         color: '#c8401a' },
+  { id: 'workflow',   label: 'Workflow & Chaining',       color: '#2a4d8c' },
+  { id: 'retrieval',  label: 'Retrieval & Grounding',     color: '#2d6b4a' },
+  { id: 'tools',      label: 'Tool Use',                  color: '#8c6b1a' },
+  { id: 'agentic',    label: 'Agentic',                   color: '#7a3b8c' },
+  { id: 'media',      label: 'Generative Media',          color: '#1a6b6b' },
+  { id: 'domain',     label: 'Domain-Specific AI',        color: '#8c1a3b' },
+  { id: 'education',  label: 'Education Applications',    color: '#4a6b1a' },
+  { id: 'meta',       label: 'Metacognitive',             color: '#b8922a' },
+  { id: 'social',     label: 'Checking In With Other Humans', color: '#5b7fa6' },
+];
+
+const CARDS = [
+  // Core Interaction
+  { id:1,  cat:'core',      text:'Single question, single model' },
+  { id:2,  cat:'core',      text:'Multi-turn conversation' },
+  { id:3,  cat:'core',      text:'Pushing back / asking a follow-up in a different direction' },
+  { id:4,  cat:'core',      text:'Giving your own answer first' },
+  { id:5,  cat:'core',      text:'Using LLM as brainstorming facilitator' },
+  { id:6,  cat:'core',      text:'Using LLM as editor / critic' },
+  { id:7,  cat:'core',      text:'Specifying output format' },
+  { id:8,  cat:'core',      text:'Specifying output length' },
+  { id:9,  cat:'core',      text:'Uploading an example output' },
+  { id:10, cat:'core',      text:'Uploading context / documents' },
+  { id:11, cat:'core',      text:'Asking for a planning discussion before tackling the problem' },
+  { id:12, cat:'core',      text:'Asking the LLM to improve your prompt' },
+  { id:13, cat:'core',      text:'Epistemic caution — knowing when not to trust output' },
+  // Workflow & Chaining
+  { id:14, cat:'workflow',  text:'Choosing the right model for the task' },
+  { id:15, cat:'workflow',  text:'Editing the system prompt' },
+  { id:16, cat:'workflow',  text:'Using a custom / fine-tuned LLM' },
+  { id:17, cat:'workflow',  text:'Getting a chat summary and feeding it to the next session' },
+  { id:18, cat:'workflow',  text:'Feeding output from one model into another' },
+  { id:19, cat:'workflow',  text:'Using a judge model to evaluate outputs' },
+  { id:20, cat:'workflow',  text:'Prompt versioning / treating prompts like code' },
+  // Retrieval & Grounding
+  { id:21, cat:'retrieval', text:'RAG (Retrieval-Augmented Generation)' },
+  { id:22, cat:'retrieval', text:'Using NotebookLM' },
+  { id:23, cat:'retrieval', text:'Citing sources / grounding outputs to reduce hallucination' },
+  { id:24, cat:'retrieval', text:'Asking for peer-reviewed sources to support a claim (and verifying they exist)' },
+  // Tool Use
+  { id:25, cat:'tools',     text:'Asking for a program / script' },
+  { id:26, cat:'tools',     text:'Asking for a spreadsheet or structured tool' },
+  { id:27, cat:'tools',     text:'Using structured outputs / JSON schemas' },
+  { id:28, cat:'tools',     text:'Running outputs through deterministic verification' },
+  // Agentic
+  { id:29, cat:'agentic',   text:'Running an agent' },
+  { id:30, cat:'agentic',   text:'Cron job / triggered / event-driven automation' },
+  { id:31, cat:'agentic',   text:'One-shot training to improve agent efficiency' },
+  // Generative Media
+  { id:32, cat:'media',     text:'Image generation' },
+  { id:33, cat:'media',     text:'Multimodal prompting (image + text input)' },
+  { id:34, cat:'media',     text:'Generating visual study materials / diagrams' },
+  // Domain-Specific AI
+  { id:35, cat:'domain',    text:'Knowing when NOT to use an LLM' },
+  { id:36, cat:'domain',    text:'Using AlphaFold or other biology-specific models' },
+  { id:37, cat:'domain',    text:'Using IBM RXN or other chemistry-specific models' },
+  { id:38, cat:'domain',    text:'Identifying and using domain-specific AI tools in your field' },
+  // Education Applications
+  { id:39, cat:'education', text:'LLM as tutor' },
+  { id:40, cat:'education', text:'Personalized curriculum design' },
+  { id:41, cat:'education', text:'Creating study materials for enrolled students' },
+  { id:42, cat:'education', text:'Syllabus design / "syllabus whisperer"' },
+  { id:43, cat:'education', text:'Assignment design' },
+  { id:44, cat:'education', text:'Rubric generation' },
+  // Metacognitive
+  { id:45, cat:'meta', text:'Noticing when a conversation is drifting or being led somewhere you didn\'t intend' },
+  { id:46, cat:'meta', text:'Noticing when the model, tone, or setup feels wrong for the task' },
+  { id:47, cat:'meta', text:'Asking the LLM to find gaps or weaknesses in your own reasoning' },
+  { id:48, cat:'meta', text:'Reflecting on what you actually learned from an exchange (not just what you got)' },
+  { id:49, cat:'meta', text:'Using the LLM to articulate something you half-knew, where the value is clarifying your own thought rather than getting its answer' },
+  // Checking In With Other Humans
+  { id:50, cat:'social', text:'Evaluating a student\'s LLM-chat transcript' },
+  { id:51, cat:'social', text:'Evaluating a colleague\'s LLM-chat transcript' },
+  { id:52, cat:'social', text:'Reading a human-authored paper on cognitive effects of LLM use' },
+  { id:53, cat:'social', text:'Letting a colleague evaluate LLM-generated artifacts' },
+  { id:54, cat:'social', text:'Teaching how to use LLMs in a way that protects cognitive function' },
+  { id:55, cat:'social', text:'Mentoring someone in LLM usage' },
+  { id:56, cat:'social', text:'Sharing LLM failures with colleagues' },
+];
+
+const catMap = {};
+CATS.forEach(c => catMap[c.id] = c);
+
+// --- State ---
+let positions = {};
+let activeFilter = null;
+let currentView = 'floor';
+let dragState = null;
+
+function getDefaultPositions() {
+  const cols = Math.floor((window.innerWidth - 64) / 200) || 5;
+  const pos = {};
+  CARDS.forEach((card, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    pos[card.id] = {
+      x: 32 + col * 200 + (Math.random() * 12 - 6),
+      y: 32 + row * 140 + (Math.random() * 10 - 5)
+    };
+  });
+  return pos;
+}
+
+function loadPositions() {
+  const defaults = getDefaultPositions();
+  try {
+    const saved = localStorage.getItem('llm-card-positions');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Merge: use saved positions where they exist, defaults for new cards
+      return Object.assign({}, defaults, parsed);
+    }
+  } catch(e) {}
+  return defaults;
+}
+
+function exportLayout() {
+  const data = JSON.stringify(positions, null, 2);
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'llm-card-layout.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importLayout() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        // Merge imported with defaults so new cards get positions too
+        const defaults = getDefaultPositions();
+        positions = Object.assign({}, defaults, parsed);
+        savePositions();
+        renderFloor();
+      } catch(err) {
+        alert('Could not read layout file. Make sure it is a valid JSON export.');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function savePositions() {
+  try { localStorage.setItem('llm-card-positions', JSON.stringify(positions)); } catch(e) {}
+}
+
+function resetPositions() {
+  positions = getDefaultPositions();
+  savePositions();
+  renderFloor();
+}
+
+// --- Legend ---
+function renderLegend() {
+  const legend = document.getElementById('legend');
+  legend.innerHTML = CATS.map(cat => `
+    <div class="legend-item ${activeFilter === cat.id ? 'active' : ''}"
+         style="--cat-color: ${cat.color}"
+         onclick="toggleFilter('${cat.id}')">
+      <div class="legend-swatch"></div>
+      ${cat.label}
+    </div>
+  `).join('');
+}
+
+function toggleFilter(catId) {
+  activeFilter = activeFilter === catId ? null : catId;
+  renderLegend();
+  if (currentView === 'floor') applyFloorFilter();
+  if (currentView === 'group') renderGroup();
+}
+
+// --- FLOOR VIEW ---
+function renderFloor() {
+  const container = document.getElementById('floor-view');
+  // Compute needed height
+  const maxY = Math.max(...Object.values(positions).map(p => p.y)) + 160;
+  container.style.minHeight = Math.max(window.innerHeight - 100, maxY) + 'px';
+
+  container.innerHTML = CARDS.map(card => {
+    const cat = catMap[card.cat];
+    const pos = positions[card.id] || { x: 40, y: 40 };
+    return `
+      <div class="floor-card" 
+           id="card-${card.id}"
+           style="left:${pos.x}px; top:${pos.y}px; --cat-color:${cat.color}"
+           data-id="${card.id}" data-cat="${card.cat}">
+        <div class="card-num">#${card.id}</div>
+        <div class="card-text">${card.text}</div>
+        <div class="card-cat-label">${cat.label}</div>
+      </div>
+    `;
+  }).join('');
+
+  applyFloorFilter();
+  initDrag();
+}
+
+function applyFloorFilter() {
+  document.querySelectorAll('.floor-card').forEach(el => {
+    const cat = el.dataset.cat;
+    if (activeFilter && cat !== activeFilter) {
+      el.classList.add('dimmed');
+    } else {
+      el.classList.remove('dimmed');
+    }
+  });
+}
+
+function initDrag() {
+  document.querySelectorAll('.floor-card').forEach(card => {
+    card.addEventListener('mousedown', onMouseDown);
+    card.addEventListener('touchstart', onTouchStart, { passive: false });
+  });
+}
+
+function onMouseDown(e) {
+  if (e.button !== 0) return;
+  startDrag(e.currentTarget, e.clientX, e.clientY);
+  e.preventDefault();
+}
+
+function onTouchStart(e) {
+  const touch = e.touches[0];
+  startDrag(e.currentTarget, touch.clientX, touch.clientY);
+  e.preventDefault();
+}
+
+function startDrag(el, clientX, clientY) {
+  const id = parseInt(el.dataset.id);
+  const pos = positions[id];
+  dragState = {
+    el, id,
+    startX: clientX,
+    startY: clientY,
+    origX: pos.x,
+    origY: pos.y
+  };
+  el.classList.add('dragging');
+  el.style.zIndex = 1000;
+}
+
+document.addEventListener('mousemove', e => {
+  if (!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dy = e.clientY - dragState.startY;
+  const newX = Math.max(0, dragState.origX + dx);
+  const newY = Math.max(0, dragState.origY + dy);
+  dragState.el.style.left = newX + 'px';
+  dragState.el.style.top = newY + 'px';
+  positions[dragState.id] = { x: newX, y: newY };
+});
+
+document.addEventListener('touchmove', e => {
+  if (!dragState) return;
+  const touch = e.touches[0];
+  const dx = touch.clientX - dragState.startX;
+  const dy = touch.clientY - dragState.startY;
+  const newX = Math.max(0, dragState.origX + dx);
+  const newY = Math.max(0, dragState.origY + dy);
+  dragState.el.style.left = newX + 'px';
+  dragState.el.style.top = newY + 'px';
+  positions[dragState.id] = { x: newX, y: newY };
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('mouseup', endDrag);
+document.addEventListener('touchend', endDrag);
+
+function endDrag() {
+  if (!dragState) return;
+  dragState.el.classList.remove('dragging');
+  dragState.el.style.zIndex = '';
+  savePositions();
+  dragState = null;
+}
+
+// --- GROUP VIEW ---
+function renderGroup() {
+  const container = document.getElementById('group-view');
+  const searchVal = document.getElementById('search-input').value.toLowerCase();
+
+  container.innerHTML = `<div class="group-view-grid">` +
+    CATS.map(cat => {
+      if (activeFilter && cat.id !== activeFilter) return '';
+      const cards = CARDS.filter(c => c.cat === cat.id);
+      return `
+        <div class="group-section" style="--cat-color:${cat.color}">
+          <div class="group-section-header">
+            <div class="cat-dot" style="background:${cat.color}"></div>
+            <h2>${cat.label}</h2>
+          </div>
+          <div class="group-card-list">
+            ${cards.map(card => {
+              const match = !searchVal || card.text.toLowerCase().includes(searchVal);
+              const text = searchVal && match
+                ? card.text.replace(new RegExp(`(${searchVal})`, 'gi'), '<mark class="highlight">$1</mark>')
+                : card.text;
+              return `
+                <div class="group-card-item ${!match && searchVal ? 'dimmed' : ''}">
+                  <span class="item-num" style="color:${cat.color}">#${card.id}</span>
+                  <span class="item-text">${text}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('') +
+  `</div>`;
+}
+
+// --- TREE VIEW ---
+function renderTree() {
+  const container = document.getElementById('tree-view');
+
+  const trunk = CARDS.filter(c => c.cat === 'core' || c.cat === 'workflow');
+  const branches = [
+    { cat: 'retrieval', label: 'Retrieval & Grounding' },
+    { cat: 'tools',     label: 'Tool Use & Determinism' },
+    { cat: 'agentic',   label: 'Agentic Automation' },
+    { cat: 'media',     label: 'Generative Media' },
+    { cat: 'domain',    label: 'Domain-Specific AI' },
+    { cat: 'education', label: 'Education Applications' },
+    { cat: 'meta',      label: 'Metacognitive (trunk layer)' },
+    { cat: 'social',    label: 'Checking In With Other Humans' },
+  ];
+
+  container.innerHTML = `
+    <div class="tree-container">
+      <div class="tree-inner">
+        <div class="tree-trunk">
+          <h3>🌱 Trunk — Core & Workflow Skills</h3>
+          <div class="trunk-items">
+            ${trunk.map(c => `
+              <div class="trunk-item">
+                <span class="ti-num">#${c.id}</span>
+                <span>${c.text}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace; font-size:0.65rem; color:var(--ink-light); margin-bottom:16px; letter-spacing:0.06em; text-transform:uppercase;">
+          ↓ Branches (prerequisite: trunk skills)
+        </div>
+        <div class="branches-row">
+          ${branches.map(b => {
+            const cat = catMap[b.cat];
+            const cards = CARDS.filter(c => c.cat === b.cat);
+            return `
+              <div class="branch" style="--cat-color:${cat.color}">
+                <h3>${b.label}</h3>
+                ${cards.map(c => `
+                  <div class="branch-item">
+                    <span class="bi-num" style="color:${cat.color}">#${c.id}</span>
+                    <span>${c.text}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- VIEW SWITCHING ---
+function setView(view) {
+  currentView = view;
+  document.getElementById('floor-view').style.display = view === 'floor' ? 'block' : 'none';
+  document.getElementById('group-view').style.display = view === 'group' ? 'block' : 'none';
+  document.getElementById('tree-view').style.display = view === 'tree' ? 'block' : 'none';
+  document.getElementById('scroll-hint').style.display = view === 'floor' ? 'block' : 'none';
+  document.querySelectorAll('.view-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['floor','group','tree'][i] === view);
+  });
+  if (view === 'group') renderGroup();
+  if (view === 'tree') renderTree();
+}
+
+// --- SEARCH ---
+document.getElementById('search-input').addEventListener('input', function() {
+  const val = this.value.toLowerCase();
+  if (currentView === 'floor') {
+    document.querySelectorAll('.floor-card').forEach(el => {
+      const id = parseInt(el.dataset.id);
+      const card = CARDS.find(c => c.id === id);
+      const match = !val || card.text.toLowerCase().includes(val);
+      el.classList.toggle('dimmed', !match && !!val);
+    });
+  }
+  if (currentView === 'group') renderGroup();
+});
+
+// --- INIT ---
+positions = loadPositions();
+renderLegend();
+renderFloor();
+
+setTimeout(() => {
+  document.getElementById('scroll-hint').style.opacity = '0';
+  document.getElementById('scroll-hint').style.transition = 'opacity 1s';
+}, 4000);
+</script>
+</body>
+</html>

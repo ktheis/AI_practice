@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parliamentary Procedure Simulator — Robert's Rules</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1118;
+  --bg-surface: #181b25;
+  --bg-elevated: #1f2333;
+  --bg-panel: #252a3a;
+  --text: #e8e6f0;
+  --text-dim: #8b8a97;
+  --text-muted: #5c5b6b;
+  --accent-gold: #d4a853;
+  --accent-gold-dim: rgba(212, 168, 83, 0.15);
+  --accent-green: #4ecb8d;
+  --accent-green-dim: rgba(78, 203, 141, 0.12);
+  --accent-red: #e05c6c;
+  --accent-red-dim: rgba(224, 92, 108, 0.12);
+  --accent-blue: #5b9cf5;
+  --accent-blue-dim: rgba(91, 156, 245, 0.12);
+  --accent-purple: #a78bfa;
+  --accent-purple-dim: rgba(167, 139, 250, 0.12);
+  --accent-orange: #f0a050;
+  --accent-orange-dim: rgba(240, 160, 80, 0.12);
+  --border: rgba(255,255,255,0.06);
+  --border-accent: rgba(212, 168, 83, 0.3);
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+body {
+  font-family: 'Source Sans 3', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Background texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(212,168,83,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 100%, rgba(91,156,245,0.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 32px 20px 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-gold), var(--accent-blue), var(--accent-gold));
+}
+.header h1 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  color: var(--accent-gold);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.header .subtitle {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+/* Layout */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 800px) {
+  .main-grid { grid-template-columns: 1fr; }
+}
+
+/* Panels */
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  position: relative;
+}
+.panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* Current State Display */
+.state-display {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 28px 24px;
+  border: 1px solid var(--border-accent);
+  background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
+}
+.state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--accent-gold-dim);
+  border: 1px solid rgba(212,168,83,0.25);
+  border-radius: 100px;
+  padding: 8px 22px;
+  margin-bottom: 14px;
+}
+.state-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(212,168,83,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 8px rgba(212,168,83,0); }
+}
+.state-name {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+}
+.state-description {
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+/* Pending Stack */
+.pending-stack {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 16px 24px;
+  min-height: 56px;
+}
+.pending-stack:empty { display: none; }
+.pending-stack .panel-label { width: 100%; margin-bottom: 4px; }
+.stack-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 100px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.stack-chip .chip-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  background: rgba(255,255,255,0.06);
+  border-radius: 50%;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.stack-chip.active {
+  background: var(--accent-gold-dim);
+  border-color: rgba(212,168,83,0.3);
+  color: var(--accent-gold);
+}
+
+/* Action Buttons */
+.actions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+.action-btn:hover:not(:disabled) {
+  border-color: rgba(255,255,255,0.15);
+  background: var(--bg-panel);
+  transform: translateX(4px);
+}
+.action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.action-btn .icon {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.action-btn .label { flex: 1; }
+.action-btn .label small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+.action-btn .status-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 10px;
+  border-radius: 100px;
+  flex-shrink: 0;
+}
+.action-btn.available .icon { background: var(--accent-green-dim); color: var(--accent-green); }
+.action-btn.available .status-tag { background: var(--accent-green-dim); color: var(--accent-green); }
+.action-btn.debate .icon { background: var(--accent-orange-dim); color: var(--accent-orange); }
+.action-btn.debate .status-tag { background: var(--accent-orange-dim); color: var(--accent-orange); }
+.action-btn.chair .icon { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.action-btn.chair .status-tag { background: var(--accent-blue-dim); color: var(--accent-blue); }
+.action-btn.blocked .icon { background: var(--accent-red-dim); color: var(--accent-red); }
+.action-btn.blocked .status-tag { background: var(--accent-red-dim); color: var(--accent-red); }
+.action-btn.privileged .icon { background: var(--accent-purple-dim); color: var(--accent-purple); }
+.action-btn.privileged .status-tag { background: var(--accent-purple-dim); color: var(--accent-purple); }
+
+/* Explanation Panel */
+.explanation {
+  grid-column: 1 / -1;
+  padding: 20px 24px;
+  border-left: 3px solid var(--accent-blue);
+  background: linear-gradient(90deg, var(--accent-blue-dim), transparent 60%);
+  min-height: 80px;
+  display: none;
+}
+.explanation.visible { display: block; }
+.explanation h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.05rem;
+  color: var(--accent-blue);
+  margin-bottom: 6px;
+}
+.explanation p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+/* History Log */
+.history-log {
+  grid-column: 1 / -1;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+.history-log::-webkit-scrollbar { width: 4px; }
+.history-log::-webkit-scrollbar-track { background: transparent; }
+.history-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.log-entry {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.log-entry:last-child { border-bottom: none; }
+.log-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 24px;
+  text-align: right;
+  padding-top: 2px;
+}
+.log-text { color: var(--text-dim); line-height: 1.4; }
+.log-text strong { color: var(--text); font-weight: 600; }
+
+/* Reset button */
+.reset-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+.reset-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 10px 28px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.reset-btn:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+
+/* Vote result overlay */
+.vote-overlay {
+  display: none;
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 28px;
+  border-radius: var(--radius);
+  animation: fadeIn 0.4s ease;
+}
+.vote-overlay.show { display: block; }
+.vote-overlay.passed {
+  background: linear-gradient(135deg, var(--accent-green-dim), transparent);
+  border: 1px solid rgba(78,203,141,0.3);
+}
+.vote-overlay.failed {
+  background: linear-gradient(135deg, var(--accent-red-dim), transparent);
+  border: 1px solid rgba(224,92,108,0.3);
+}
+.vote-overlay h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+}
+.vote-overlay.passed h2 { color: var(--accent-green); }
+.vote-overlay.failed h2 { color: var(--accent-red); }
+.vote-overlay p { color: var(--text-dim); font-size: 0.95rem; }
+
+/* Tooltip for blocked reasons */
+.action-btn.blocked[title] { position: relative; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>⚖️ Parliamentary Procedure Simulator</h1>
+    <p class="subtitle">An interactive state machine based on Robert's Rules of Order — for Model Congress</p>
+  </div>
+
+  <div class="main-grid" id="app">
+    <!-- State Display -->
+    <div class="panel state-display" id="stateDisplay"></div>
+
+    <!-- Pending Motion Stack -->
+    <div class="panel pending-stack" id="pendingStack"></div>
+
+    <!-- Available Actions -->
+    <div class="panel" id="actionsPanel">
+      <div class="panel-label">Available Actions</div>
+      <div class="actions-grid" id="availableActions"></div>
+    </div>
+
+    <!-- Blocked Actions -->
+    <div class="panel" id="blockedPanel">
+      <div class="panel-label">Not In Order</div>
+      <div class="actions-grid" id="blockedActions"></div>
+    </div>
+
+    <!-- Explanation -->
+    <div class="panel explanation" id="explanation"></div>
+
+    <!-- Vote overlay -->
+    <div class="vote-overlay" id="voteOverlay"></div>
+
+    <!-- History -->
+    <div class="panel history-log" id="historyLog">
+      <div class="panel-label">Session Record</div>
+    </div>
+
+    <!-- Reset -->
+    <div class="reset-bar">
+      <button class="reset-btn" onclick="resetSession()">↺ New Session</button>
+      <button class="reset-btn" onclick="showReference()">📖 Quick Reference</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  PARLIAMENTARY PROCEDURE STATE MACHINE
+//  Based on Robert's Rules of Order (simplified)
+// ═══════════════════════════════════════════════
+
+const STATES = {
+  NO_SESSION: {
+    name: "No Session",
+    description: "The meeting has not yet been called to order. The Chair must open the session before any business can be conducted."
+  },
+  IDLE: {
+    name: "No Pending Business",
+    description: "The floor is open. The Chair may recognize a member to introduce a main motion, or entertain other business."
+  },
+  MAIN_MOTION: {
+    name: "Main Motion on the Floor",
+    description: "A main motion has been made and seconded. It is now open for debate. Members may speak to the motion, propose amendments, or move to vote."
+  },
+  AMENDMENT: {
+    name: "Amendment Under Consideration",
+    description: "An amendment to the main motion has been proposed and seconded. Debate is now limited to the amendment. The amendment must be resolved before returning to the main motion."
+  },
+  AMENDMENT_2: {
+    name: "Second-Degree Amendment",
+    description: "An amendment to the amendment is on the floor. Robert's Rules allows up to two levels of amendments. This must be resolved first."
+  },
+  VOTING_MAIN: {
+    name: "Voting on Main Motion",
+    description: "Debate is closed on the main motion. The Chair will now put the question to a vote."
+  },
+  VOTING_AMENDMENT: {
+    name: "Voting on Amendment",
+    description: "Debate is closed on the amendment. The Chair will now put the amendment to a vote."
+  },
+  VOTING_AMENDMENT_2: {
+    name: "Voting on 2nd-Degree Amendment",
+    description: "The second-degree amendment is being put to a vote."
+  },
+  TABLED: {
+    name: "Motion Laid on the Table",
+    description: "The main motion has been tabled. The body may take up other business. The motion can be taken from the table later by majority vote."
+  },
+  REFERRED: {
+    name: "Motion Referred to Committee",
+    description: "The main motion has been referred to a committee for further study. The floor is now open for new business."
+  },
+  RECESS: {
+    name: "Recess",
+    description: "The meeting is in recess. The Chair will reconvene the session."
+  },
+  ADJOURNED: {
+    name: "Meeting Adjourned",
+    description: "The meeting has been adjourned. No further business can be conducted until a new session is called to order."
+  }
+};
+
+// Action definitions
+const ACTIONS = {
+  call_to_order: {
+    label: "Call to Order",
+    detail: "Chair opens the session",
+    icon: "🔔",
+    category: "privileged",
+    needsSecond: false,
+    debatable: false
+  },
+  main_motion: {
+    label: "Make a Main Motion",
+    detail: "Introduce new business for consideration",
+    icon: "📜",
+    category: "main",
+    needsSecond: true,
+    debatable: true
+  },
+  amend: {
+    label: "Move to Amend",
+    detail: "Propose a change to the pending motion",
+    icon: "✏️",
+    category: "subsidiary",
+    needsSecond: true,
+    debatable: true
+  },
+  amend_2: {
+    label: "Amend the Amendment",
+    detail: "Propose a change to the pending amendment",
+    icon: "✏️",
+    category: "subsidiary",
+    needsSecond: true,
+    debatable: true
+  },
+  speak_for: {
+    label: "Speak in Favor",
+    detail: "Address the body in support of the pending question",
+    icon: "🎤",
+    category: "debate",
+    needsSecond: false,
+    debatable: false
+  },
+  speak_against: {
+    label: "Speak in Opposition",
+    detail: "Address the body against the pending question",
+    icon: "🎤",
+    category: "debate",
+    needsSecond: false,
+    debatable: false
+  },
+  chair_calls_vote: {
+    label: "Chair: \"Any Further Debate?\"",
+    detail: "If no one wishes to speak, proceed to vote",
+    icon: "🪑",
+    category: "chair",
+    needsSecond: false,
+    debatable: false
+  },
+  previous_question: {
+    label: "Call the Previous Question",
+    detail: "End debate and move to an immediate vote (⅔ needed)",
+    icon: "⚡",
+    category: "subsidiary",
+    needsSecond: true,
+    debatable: false
+  },
+  table: {
+    label: "Lay on the Table",
+    detail: "Set aside the motion temporarily",
+    icon: "📥",
+    category: "subsidiary",
+    needsSecond: true,
+    debatable: false
+  },
+  refer: {
+    label: "Refer to Committee",
+    detail: "Send the motion to a committee for study",
+    icon: "📋",
+    category: "subsidiary",
+    needsSecond: true,
+    debatable: true
+  },
+  point_of_order: {
+    label: "Point of Order",
+    detail: "Call attention to a rules violation",
+    icon: "⚠️",
+    category: "privileged",
+    needsSecond: false,
+    debatable: false
+  },
+  point_of_inquiry: {
+    label: "Point of Inquiry",
+    detail: "Ask a question about the motion or procedure",
+    icon: "❓",
+    category: "privileged",
+    needsSecond: false,
+    debatable: false
+  },
+  recess: {
+    label: "Move to Recess",
+    detail: "Take a temporary break",
+    icon: "⏸️",
+    category: "privileged",
+    needsSecond: true,
+    debatable: false
+  },
+  adjourn: {
+    label: "Move to Adjourn",
+    detail: "End the meeting entirely",
+    icon: "🚪",
+    category: "privileged",
+    needsSecond: true,
+    debatable: false
+  },
+  resume: {
+    label: "Reconvene / Resume",
+    detail: "Return from recess to continue business",
+    icon: "▶️",
+    category: "privileged",
+    needsSecond: false,
+    debatable: false
+  },
+  take_from_table: {
+    label: "Take from the Table",
+    detail: "Bring back a previously tabled motion",
+    icon: "📤",
+    category: "main",
+    needsSecond: true,
+    debatable: false
+  },
+  vote_yes: {
+    label: "Vote: Aye (Pass)",
+    detail: "The motion passes by majority",
+    icon: "✅",
+    category: "vote",
+    needsSecond: false,
+    debatable: false
+  },
+  vote_no: {
+    label: "Vote: Nay (Fail)",
+    detail: "The motion fails to get majority",
+    icon: "❌",
+    category: "vote",
+    needsSecond: false,
+    debatable: false
+  },
+  new_main_motion: {
+    label: "Introduce New Business",
+    detail: "Make a new main motion",
+    icon: "📜",
+    category: "main",
+    needsSecond: true,
+    debatable: true
+  }
+};
+
+// State transitions: which actions are available in each state
+const TRANSITIONS = {
+  NO_SESSION: {
+    available: ['call_to_order'],
+    blocked: {
+      main_motion: "No session — must call to order first",
+      speak_for: "No session in progress — no debate",
+      speak_against: "No session in progress — no debate",
+      amend: "No motion on the floor",
+      previous_question: "No session in progress",
+      table: "No motion to table",
+      refer: "No motion to refer",
+      adjourn: "No session to adjourn",
+      recess: "No session in progress"
+    }
+  },
+  IDLE: {
+    available: ['main_motion', 'take_from_table', 'recess', 'adjourn'],
+    blocked: {
+      speak_for: "No motion on the floor — nothing to debate",
+      speak_against: "No motion on the floor — nothing to debate",
+      amend: "No motion on the floor to amend",
+      amend_2: "No amendment on the floor",
+      previous_question: "No pending question — nothing to vote on",
+      table: "No motion on the floor to table",
+      refer: "No motion on the floor to refer"
+    }
+  },
+  MAIN_MOTION: {
+    available: ['speak_for', 'speak_against', 'chair_calls_vote', 'amend', 'previous_question', 'table', 'refer', 'point_of_order', 'point_of_inquiry', 'recess', 'adjourn'],
+    blocked: {
+      main_motion: "A main motion is already pending — only one at a time",
+      amend_2: "Must first have an amendment pending",
+      take_from_table: "Cannot take from table while business is pending"
+    }
+  },
+  AMENDMENT: {
+    available: ['speak_for', 'speak_against', 'chair_calls_vote', 'amend_2', 'previous_question', 'point_of_order', 'point_of_inquiry', 'recess'],
+    blocked: {
+      main_motion: "Must resolve the amendment first",
+      amend: "An amendment is already pending — amend this one or vote on it",
+      table: "Must resolve the amendment before tabling the main motion",
+      refer: "Must resolve the amendment first",
+      adjourn: "Must resolve pending amendment before adjourning",
+      take_from_table: "Cannot take from table while business is pending"
+    }
+  },
+  AMENDMENT_2: {
+    available: ['speak_for', 'speak_against', 'chair_calls_vote', 'previous_question', 'point_of_order', 'point_of_inquiry'],
+    blocked: {
+      main_motion: "Must resolve the 2nd-degree amendment first",
+      amend: "Must resolve the 2nd-degree amendment first",
+      amend_2: "Robert's Rules limits amendments to two degrees — no 3rd-degree amendments",
+      table: "Must resolve pending amendments first",
+      refer: "Must resolve pending amendments first",
+      adjourn: "Must resolve pending amendments before adjourning",
+      recess: "Must resolve the 2nd-degree amendment first"
+    }
+  },
+  VOTING_MAIN: {
+    available: ['vote_yes', 'vote_no'],
+    blocked: {
+      speak_for: "Debate is closed — vote in progress",
+      speak_against: "Debate is closed — vote in progress",
+      main_motion: "Vote in progress",
+      amend: "Vote in progress — no debate or amendments",
+      previous_question: "Already voting",
+      table: "Vote in progress",
+      refer: "Vote in progress",
+      point_of_order: "Vote in progress",
+      adjourn: "Vote in progress"
+    }
+  },
+  VOTING_AMENDMENT: {
+    available: ['vote_yes', 'vote_no'],
+    blocked: {
+      speak_for: "Debate is closed — vote in progress",
+      speak_against: "Debate is closed — vote in progress",
+      main_motion: "Vote on amendment in progress",
+      amend: "Vote in progress",
+      amend_2: "Vote in progress",
+      previous_question: "Already voting",
+      table: "Vote in progress",
+      adjourn: "Vote in progress"
+    }
+  },
+  VOTING_AMENDMENT_2: {
+    available: ['vote_yes', 'vote_no'],
+    blocked: {
+      speak_for: "Debate is closed — vote in progress",
+      speak_against: "Debate is closed — vote in progress",
+      main_motion: "Vote on 2nd-degree amendment in progress",
+      amend: "Vote in progress",
+      amend_2: "Vote in progress",
+      previous_question: "Already voting",
+      table: "Vote in progress",
+      adjourn: "Vote in progress"
+    }
+  },
+  TABLED: {
+    available: ['new_main_motion', 'take_from_table', 'recess', 'adjourn'],
+    blocked: {
+      speak_for: "No active motion — nothing to debate",
+      speak_against: "No active motion — nothing to debate",
+      amend: "No active motion on the floor",
+      previous_question: "No pending question",
+      table: "Already tabled",
+      refer: "No active motion"
+    }
+  },
+  REFERRED: {
+    available: ['new_main_motion', 'recess', 'adjourn'],
+    blocked: {
+      speak_for: "No active motion — nothing to debate",
+      speak_against: "No active motion — nothing to debate",
+      amend: "No active motion on the floor",
+      previous_question: "No pending question",
+      table: "No active motion",
+      refer: "Already referred"
+    }
+  },
+  RECESS: {
+    available: ['resume'],
+    blocked: {
+      speak_for: "Meeting is in recess",
+      speak_against: "Meeting is in recess",
+      main_motion: "Meeting is in recess",
+      amend: "Meeting is in recess",
+      previous_question: "Meeting is in recess",
+      table: "Meeting is in recess",
+      adjourn: "Must reconvene before adjourning"
+    }
+  },
+  ADJOURNED: {
+    available: ['call_to_order'],
+    blocked: {
+      speak_for: "Meeting is adjourned",
+      speak_against: "Meeting is adjourned",
+      main_motion: "Meeting is adjourned — must call a new session",
+      amend: "Meeting is adjourned",
+      previous_question: "Meeting is adjourned",
+      table: "Meeting is adjourned",
+      adjourn: "Already adjourned"
+    }
+  }
+};
+
+// ═══════════════════════════════════════
+//  APPLICATION STATE
+// ═══════════════════════════════════════
+
+let state = 'NO_SESSION';
+let motionStack = [];  // stack of pending motions
+let history = [];
+let tabledMotion = null;
+let mainMotionAmended = false;
+let previousState = null;  // for recess return
+
+function getExplanation(action) {
+  const explanations = {
+    call_to_order: "The Chair has called the meeting to order. The session is now open for business. Members may be recognized to introduce motions.",
+    main_motion: "A member has been recognized and made a main motion. Another member has seconded it. The motion is now on the floor and open for debate. Members may speak for or against, propose amendments, or move to vote.",
+    speak_for: "A member has been recognized and is speaking in favor of the pending question. Each member typically gets to speak once (or twice) on each question, for a limited time. When they finish, the Chair asks if anyone else wishes to speak.",
+    speak_against: "A member has been recognized and is speaking against the pending question. The Chair generally alternates between proponents and opponents when possible. When they finish, the floor reopens for further debate or action.",
+    chair_calls_vote: "The Chair has asked 'Is there any further debate?' — hearing none, the Chair proceeds to put the question to a vote. This is the normal, orderly way debate concludes, as opposed to a member forcing the close with 'Previous Question.'",
+    amend: "An amendment has been proposed and seconded. Debate now focuses on the amendment only — not the main motion. The amendment must be voted on before returning to debate on the main motion.",
+    amend_2: "A second-degree amendment (an amendment to the amendment) is now on the floor. Robert's Rules allows at most two levels of amendments. This must be resolved before returning to the first amendment.",
+    previous_question: "A member has moved the Previous Question (called for the vote). This requires a ⅔ majority to pass. If adopted, debate ends immediately and the body proceeds to vote on the pending question.",
+    table: "The motion has been laid on the table. It is set aside and can be taken up again later by a majority vote to 'take from the table.' The floor is now open for other business.",
+    refer: "The motion has been referred to a committee for further study and recommendations. The committee will report back, and the motion may return to the floor at a future meeting.",
+    point_of_order: "A member has raised a Point of Order, alleging a breach of the rules. The Chair must rule on the point immediately. This does not change the pending business — it's an interruption to correct procedure. The Chair rules, and business continues.",
+    point_of_inquiry: "A member has raised a Point of Inquiry — a question to the Chair about the pending motion or about parliamentary procedure. The Chair or a designated member responds, and business continues.",
+    recess: "The meeting is in recess. This is a temporary break. When the Chair reconvenes, business resumes exactly where it left off.",
+    adjourn: "The meeting has been adjourned. All pending business is suspended. To continue, a new session must be called to order.",
+    resume: "The Chair has reconvened the meeting. Business resumes from where it was when recess was called.",
+    take_from_table: "The previously tabled motion has been taken from the table and is back on the floor for consideration, in the same state it was in when tabled.",
+    vote_yes_main: "The main motion has been adopted by majority vote. The body has decided in favor of the proposal.",
+    vote_no_main: "The main motion has been defeated. The proposal does not pass. The floor is open for new business.",
+    vote_yes_amend: "The amendment has been adopted. The main motion is now modified accordingly and is back on the floor for further debate or a vote.",
+    vote_no_amend: "The amendment has been defeated. The main motion remains in its original form and is back on the floor for debate.",
+    vote_yes_amend2: "The second-degree amendment has been adopted. The first amendment is now modified and back on the floor for debate or a vote.",
+    vote_no_amend2: "The second-degree amendment has been defeated. The first amendment remains unchanged and is back on the floor.",
+    new_main_motion: "A new main motion has been introduced and seconded. It is now on the floor and open for debate."
+  };
+  return explanations[action] || "";
+}
+
+// ═══════════════════════════════════════
+//  HANDLE ACTIONS
+// ═══════════════════════════════════════
+
+function handleAction(action) {
+  hideVoteOverlay();
+  let logMsg = '';
+  let explKey = action;
+
+  switch(action) {
+    case 'call_to_order':
+      state = 'IDLE';
+      motionStack = [];
+      logMsg = '<strong>Chair:</strong> "The meeting will come to order."';
+      break;
+
+    case 'main_motion':
+    case 'new_main_motion':
+      state = 'MAIN_MOTION';
+      mainMotionAmended = false;
+      motionStack = ['Main Motion'];
+      logMsg = '<strong>Member:</strong> "I move that..." — <strong>Seconded.</strong>';
+      explKey = action === 'new_main_motion' ? 'new_main_motion' : 'main_motion';
+      break;
+
+    case 'speak_for': {
+      const topic = state === 'AMENDMENT_2' ? 'the 2nd-degree amendment' : state === 'AMENDMENT' ? 'the amendment' : 'the motion';
+      logMsg = `<strong>Member:</strong> (recognized by Chair) Speaks <em>in favor</em> of ${topic}.`;
+      // State doesn't change — still in debate
+      break;
+    }
+
+    case 'speak_against': {
+      const topic = state === 'AMENDMENT_2' ? 'the 2nd-degree amendment' : state === 'AMENDMENT' ? 'the amendment' : 'the motion';
+      logMsg = `<strong>Member:</strong> (recognized by Chair) Speaks <em>against</em> ${topic}.`;
+      // State doesn't change — still in debate
+      break;
+    }
+
+    case 'chair_calls_vote':
+      logMsg = '<strong>Chair:</strong> "Is there any further debate?" (pause) "Hearing none, we will proceed to a vote."';
+      if (state === 'MAIN_MOTION') state = 'VOTING_MAIN';
+      else if (state === 'AMENDMENT') state = 'VOTING_AMENDMENT';
+      else if (state === 'AMENDMENT_2') state = 'VOTING_AMENDMENT_2';
+      break;
+
+    case 'amend':
+      state = 'AMENDMENT';
+      motionStack = ['Main Motion', 'Amendment'];
+      logMsg = '<strong>Member:</strong> "I move to amend the motion by..." — <strong>Seconded.</strong>';
+      break;
+
+    case 'amend_2':
+      state = 'AMENDMENT_2';
+      motionStack = ['Main Motion', 'Amendment', '2nd° Amendment'];
+      logMsg = '<strong>Member:</strong> "I move to amend the amendment by..." — <strong>Seconded.</strong>';
+      break;
+
+    case 'previous_question':
+      if (state === 'MAIN_MOTION') state = 'VOTING_MAIN';
+      else if (state === 'AMENDMENT') state = 'VOTING_AMENDMENT';
+      else if (state === 'AMENDMENT_2') state = 'VOTING_AMENDMENT_2';
+      logMsg = '<strong>Member:</strong> "I call the question!" — <strong>Seconded.</strong> ⅔ vote in favor — debate is closed.';
+      break;
+
+    case 'table':
+      tabledMotion = { amended: mainMotionAmended };
+      state = 'TABLED';
+      motionStack = [];
+      logMsg = '<strong>Motion laid on the table.</strong> The floor is open for other business.';
+      break;
+
+    case 'refer':
+      state = 'REFERRED';
+      motionStack = [];
+      logMsg = '<strong>Motion referred to committee</strong> for further study.';
+      break;
+
+    case 'point_of_order':
+      logMsg = '<strong>Member:</strong> "Point of order!" — <strong>Chair:</strong> "State your point." (Chair rules; business continues.)';
+      break;
+
+    case 'point_of_inquiry':
+      logMsg = '<strong>Member:</strong> "Point of inquiry!" — <strong>Chair:</strong> "State your question." (Chair or member responds; business continues.)';
+      break;
+
+    case 'recess':
+      previousState = state;
+      state = 'RECESS';
+      logMsg = '<strong>Chair:</strong> "The meeting stands in recess."';
+      break;
+
+    case 'resume':
+      state = previousState || 'IDLE';
+      previousState = null;
+      logMsg = '<strong>Chair:</strong> "The meeting will come back to order."';
+      break;
+
+    case 'adjourn':
+      state = 'ADJOURNED';
+      motionStack = [];
+      logMsg = '<strong>Chair:</strong> "The meeting is adjourned."';
+      break;
+
+    case 'take_from_table':
+      state = 'MAIN_MOTION';
+      mainMotionAmended = tabledMotion ? tabledMotion.amended : false;
+      motionStack = ['Main Motion'];
+      tabledMotion = null;
+      logMsg = '<strong>Motion taken from the table.</strong> The main motion is back on the floor.';
+      break;
+
+    case 'vote_yes':
+      if (state === 'VOTING_MAIN') {
+        logMsg = '<strong>Vote: AYE.</strong> The main motion is <strong>ADOPTED</strong>.';
+        explKey = 'vote_yes_main';
+        showVoteOverlay(true, "Motion Adopted", "The main motion passes by majority vote.");
+        state = 'IDLE';
+        motionStack = [];
+      } else if (state === 'VOTING_AMENDMENT') {
+        logMsg = '<strong>Vote: AYE.</strong> The amendment is <strong>ADOPTED</strong>.';
+        explKey = 'vote_yes_amend';
+        showVoteOverlay(true, "Amendment Adopted", "The main motion is now amended. Returning to debate on the (modified) main motion.");
+        mainMotionAmended = true;
+        state = 'MAIN_MOTION';
+        motionStack = ['Main Motion (as amended)'];
+      } else if (state === 'VOTING_AMENDMENT_2') {
+        logMsg = '<strong>Vote: AYE.</strong> The 2nd-degree amendment is <strong>ADOPTED</strong>.';
+        explKey = 'vote_yes_amend2';
+        showVoteOverlay(true, "2nd° Amendment Adopted", "Returning to debate on the (modified) amendment.");
+        state = 'AMENDMENT';
+        motionStack = ['Main Motion', 'Amendment (as amended)'];
+      }
+      break;
+
+    case 'vote_no':
+      if (state === 'VOTING_MAIN') {
+        logMsg = '<strong>Vote: NAY.</strong> The main motion is <strong>DEFEATED</strong>.';
+        explKey = 'vote_no_main';
+        showVoteOverlay(false, "Motion Defeated", "The motion fails. The floor is open for new business.");
+        state = 'IDLE';
+        motionStack = [];
+      } else if (state === 'VOTING_AMENDMENT') {
+        logMsg = '<strong>Vote: NAY.</strong> The amendment is <strong>DEFEATED</strong>.';
+        explKey = 'vote_no_amend';
+        showVoteOverlay(false, "Amendment Defeated", "The main motion stands in its original form. Returning to debate on the main motion.");
+        state = 'MAIN_MOTION';
+        motionStack = mainMotionAmended ? ['Main Motion (as amended)'] : ['Main Motion'];
+      } else if (state === 'VOTING_AMENDMENT_2') {
+        logMsg = '<strong>Vote: NAY.</strong> The 2nd-degree amendment is <strong>DEFEATED</strong>.';
+        explKey = 'vote_no_amend2';
+        showVoteOverlay(false, "2nd° Amendment Defeated", "Returning to debate on the original amendment.");
+        state = 'AMENDMENT';
+        motionStack = ['Main Motion', 'Amendment'];
+      }
+      break;
+  }
+
+  if (logMsg) {
+    history.push(logMsg);
+  }
+
+  showExplanation(explKey);
+  render();
+}
+
+// ═══════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════
+
+function render() {
+  // State display
+  const sd = document.getElementById('stateDisplay');
+  const st = STATES[state];
+  sd.innerHTML = `
+    <div class="state-badge">
+      <div class="state-dot"></div>
+      <span class="state-name">${st.name}</span>
+    </div>
+    <p class="state-description">${st.description}</p>
+  `;
+
+  // Pending stack
+  const ps = document.getElementById('pendingStack');
+  if (motionStack.length > 0) {
+    ps.innerHTML = `<div class="panel-label">Pending Motion Stack (resolve top first)</div>` +
+      motionStack.map((m, i) => `<span class="stack-chip ${i === motionStack.length - 1 ? 'active' : ''}"><span class="chip-num">${i + 1}</span>${m}</span>`).join('');
+    ps.style.display = 'flex';
+  } else {
+    ps.innerHTML = '';
+    ps.style.display = 'none';
+  }
+
+  // Actions
+  const trans = TRANSITIONS[state];
+  const availDiv = document.getElementById('availableActions');
+  const blockDiv = document.getElementById('blockedActions');
+
+  availDiv.innerHTML = '';
+  blockDiv.innerHTML = '';
+
+  // Available actions
+  trans.available.forEach(key => {
+    const a = ACTIONS[key];
+    if (!a) return;
+
+    // Hide take_from_table if nothing is tabled
+    if (key === 'take_from_table' && !tabledMotion) return;
+
+    const btn = document.createElement('button');
+    const styleClass = (a.category === 'debate') ? 'debate' : (a.category === 'chair') ? 'chair' : 'available';
+    const tagLabel = (a.category === 'debate') ? 'Debate' : (a.category === 'chair') ? 'Chair' : 'In Order';
+    btn.className = `action-btn ${styleClass}`;
+    btn.innerHTML = `
+      <span class="icon">${a.icon}</span>
+      <span class="label">${a.label}<small>${a.detail}</small></span>
+      <span class="status-tag">${tagLabel}</span>
+    `;
+    btn.onclick = () => handleAction(key);
+    availDiv.appendChild(btn);
+  });
+
+  // Blocked actions
+  Object.entries(trans.blocked || {}).forEach(([key, reason]) => {
+    const a = ACTIONS[key];
+    if (!a) return;
+    const btn = document.createElement('button');
+    btn.className = `action-btn blocked`;
+    btn.disabled = true;
+    btn.title = reason;
+    btn.innerHTML = `
+      <span class="icon">${a.icon}</span>
+      <span class="label">${a.label}<small>${reason}</small></span>
+      <span class="status-tag">Blocked</span>
+    `;
+    blockDiv.appendChild(btn);
+  });
+
+  // History
+  const hlog = document.getElementById('historyLog');
+  hlog.innerHTML = `<div class="panel-label">Session Record</div>` +
+    history.map((h, i) => `<div class="log-entry"><span class="log-num">${i + 1}</span><span class="log-text">${h}</span></div>`).join('');
+  hlog.scrollTop = hlog.scrollHeight;
+}
+
+function showExplanation(key) {
+  const el = document.getElementById('explanation');
+  const text = getExplanation(key);
+  if (text) {
+    const a = ACTIONS[key] || {};
+    el.innerHTML = `<h3>${a.label || key.replace(/_/g, ' ')}</h3><p>${text}</p>`;
+    el.classList.add('visible');
+  } else {
+    el.classList.remove('visible');
+  }
+}
+
+function showVoteOverlay(passed, title, desc) {
+  const el = document.getElementById('voteOverlay');
+  el.className = `vote-overlay show ${passed ? 'passed' : 'failed'}`;
+  el.innerHTML = `<h2>${passed ? '✅' : '❌'} ${title}</h2><p>${desc}</p>`;
+}
+
+function hideVoteOverlay() {
+  document.getElementById('voteOverlay').className = 'vote-overlay';
+}
+
+function resetSession() {
+  state = 'NO_SESSION';
+  motionStack = [];
+  history = [];
+  tabledMotion = null;
+  mainMotionAmended = false;
+  previousState = null;
+  hideVoteOverlay();
+  document.getElementById('explanation').classList.remove('visible');
+  render();
+}
+
+function showReference() {
+  const el = document.getElementById('explanation');
+  el.innerHTML = `
+    <h3>📖 Quick Reference — Precedence of Motions</h3>
+    <p>
+      Motions are ranked by precedence. A higher-ranking motion can be made while a lower one is pending, but not vice versa.<br><br>
+      <strong>Privileged Motions</strong> (highest): Adjourn → Recess → Orders of the Day<br>
+      <strong>Subsidiary Motions</strong>: Lay on the Table → Previous Question (close debate) → Refer to Committee → Amend → Postpone<br>
+      <strong>Main Motion</strong> (lowest): Can only be made when no other business is pending<br>
+      <strong>Incidental Motions</strong> (Point of Order, Point of Inquiry): Can interrupt at any time — they don't have a rank because they're handled immediately.<br><br>
+      <strong>Key voting thresholds:</strong> Most motions require a simple majority. "Previous Question" (closing debate) requires ⅔ majority. Amending previously adopted motions requires ⅔.
+    </p>
+  `;
+  el.classList.add('visible');
+}
+
+// Initial render
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADA Accessibility Checker — Markdown → WCAG Audit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,800;1,9..144,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0c0b0f;
+    --surface: #16141c;
+    --surface-2: #1e1b27;
+    --border: #2a2636;
+    --border-focus: #6c5ce7;
+    --text: #e8e4f0;
+    --text-muted: #8b839e;
+    --accent: #6c5ce7;
+    --accent-glow: rgba(108, 92, 231, 0.15);
+    --pass: #00b894;
+    --pass-bg: rgba(0, 184, 148, 0.08);
+    --fail: #e17055;
+    --fail-bg: rgba(225, 112, 85, 0.08);
+    --warn: #fdcb6e;
+    --warn-bg: rgba(253, 203, 110, 0.08);
+    --info: #74b9ff;
+    --info-bg: rgba(116, 185, 255, 0.08);
+    --radius: 10px;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Fraunces', serif;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-weight: 400;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 3rem;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 3px;
+    background: var(--accent);
+    margin: 1.5rem auto 0;
+    border-radius: 2px;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 800;
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  h1 span {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent), #a29bfe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.6rem;
+    letter-spacing: 0.03em;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+
+  .upload-zone.dragover {
+    transform: scale(1.01);
+  }
+
+  .upload-icon {
+    font-size: 2.2rem;
+    margin-bottom: 0.8rem;
+    display: block;
+    opacity: 0.7;
+  }
+
+  .upload-zone p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .upload-zone p strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .upload-zone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* Or divider */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .or-divider::before, .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Textarea */
+  .editor-wrap {
+    position: relative;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 200px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 1.2rem;
+    resize: vertical;
+    transition: border-color 0.3s;
+    line-height: 1.7;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 4px var(--accent-glow);
+  }
+
+  textarea::placeholder { color: var(--text-muted); opacity: 0.5; }
+
+  /* Button */
+  .btn-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(108, 92, 231, 0.3);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(108, 92, 231, 0.45);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+
+  /* Results */
+  .results {
+    margin-top: 2.5rem;
+    display: none;
+  }
+
+  .results.visible { display: block; animation: fadeUp 0.4s ease; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .score-bar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .score-card {
+    flex: 1;
+    min-width: 130px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .score-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+
+  .score-card.pass::before { background: var(--pass); }
+  .score-card.fail::before { background: var(--fail); }
+  .score-card.warn::before { background: var(--warn); }
+  .score-card.info::before { background: var(--info); }
+
+  .score-num {
+    font-family: var(--serif);
+    font-weight: 800;
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  .score-card.pass .score-num { color: var(--pass); }
+  .score-card.fail .score-num { color: var(--fail); }
+  .score-card.warn .score-num { color: var(--warn); }
+  .score-card.info .score-num { color: var(--info); }
+
+  .score-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 0.4rem;
+  }
+
+  /* Issue groups */
+  .issue-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .issue-group-header {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .issue-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.2s;
+    font-size: 0.82rem;
+    line-height: 1.65;
+  }
+
+  .issue-item:hover { border-color: var(--border-focus); }
+
+  .issue-item.severity-error { border-left: 3px solid var(--fail); }
+  .issue-item.severity-warning { border-left: 3px solid var(--warn); }
+  .issue-item.severity-info { border-left: 3px solid var(--info); }
+  .issue-item.severity-pass { border-left: 3px solid var(--pass); }
+
+  .issue-tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+
+  .tag-error { background: var(--fail-bg); color: var(--fail); }
+  .tag-warning { background: var(--warn-bg); color: var(--warn); }
+  .tag-info { background: var(--info-bg); color: var(--info); }
+  .tag-pass { background: var(--pass-bg); color: var(--pass); }
+
+  .issue-title { font-weight: 500; }
+  .issue-detail { color: var(--text-muted); margin-top: 0.35rem; }
+  .issue-wcag { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.4rem; opacity: 0.8; }
+
+  .all-pass-banner {
+    background: var(--pass-bg);
+    border: 1px solid rgba(0, 184, 148, 0.2);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    font-family: var(--serif);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--pass);
+  }
+
+  /* Footer note */
+  .footer-note {
+    margin-top: 2.5rem;
+    padding: 1rem 1.2rem;
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+    border: 1px solid var(--border);
+  }
+
+  .footer-note strong { color: var(--text); font-weight: 500; }
+
+  /* HTML Preview */
+  .preview-section {
+    margin-top: 2rem;
+    display: none;
+  }
+
+  .preview-section.visible { display: block; animation: fadeUp 0.4s ease; }
+
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .preview-label {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.1rem;
+  }
+
+  .preview-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .preview-tab {
+    padding: 0.35rem 0.9rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.04em;
+  }
+
+  .preview-tab + .preview-tab { border-left: 1px solid var(--border); }
+
+  .preview-tab.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .preview-rendered {
+    background: #fff;
+    color: #1a1a2e;
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .preview-rendered h1, .preview-rendered h2, .preview-rendered h3,
+  .preview-rendered h4, .preview-rendered h5, .preview-rendered h6 {
+    color: #1a1a2e;
+    margin: 1em 0 0.5em;
+    line-height: 1.3;
+  }
+
+  .preview-rendered h1 { font-size: 1.8rem; }
+  .preview-rendered h2 { font-size: 1.4rem; }
+  .preview-rendered h3 { font-size: 1.15rem; }
+
+  .preview-rendered p { margin: 0.6em 0; }
+  .preview-rendered a { color: #6c5ce7; }
+  .preview-rendered code { background: #f0eef5; padding: 0.15em 0.4em; border-radius: 3px; font-size: 0.85em; }
+  .preview-rendered pre { background: #f0eef5; padding: 1em; border-radius: 6px; overflow-x: auto; }
+  .preview-rendered pre code { background: none; padding: 0; }
+  .preview-rendered blockquote { border-left: 3px solid #6c5ce7; padding-left: 1em; margin: 0.8em 0; color: #555; }
+  .preview-rendered img { max-width: 100%; border-radius: 4px; }
+  .preview-rendered table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+  .preview-rendered th, .preview-rendered td { border: 1px solid #ddd; padding: 0.5em 0.75em; text-align: left; }
+  .preview-rendered th { background: #f0eef5; font-weight: 600; }
+  .preview-rendered ul, .preview-rendered ol { margin: 0.5em 0; padding-left: 1.5em; }
+  .preview-rendered li { margin: 0.25em 0; }
+
+  .preview-source {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.2rem;
+    max-height: 500px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+  }
+
+  .lang-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: var(--pass-bg);
+    color: var(--pass);
+    margin-left: 0.75rem;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+
+  /* Hidden audit container */
+  #audit-container { display: none; }
+
+  @media (max-width: 600px) {
+    .container { padding: 2rem 1rem 4rem; }
+    .score-bar { gap: 0.5rem; }
+    .score-card { min-width: 70px; padding: 0.8rem 0.5rem; }
+    .score-num { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>ADA <span>Accessibility</span> Checker</h1>
+    <p class="subtitle">Upload Markdown → Convert to HTML → Automated WCAG 2.1 AA Audit</p>
+  </header>
+
+  <div class="upload-zone" id="dropZone">
+    <span class="upload-icon">⬆</span>
+    <p>Drop a <strong>.md file</strong> here or click to browse</p>
+    <input type="file" id="fileInput" accept=".md,.markdown,.txt">
+  </div>
+
+  <div class="or-divider">or paste markdown</div>
+
+  <div class="editor-wrap">
+    <textarea id="mdInput" placeholder="# Paste your markdown here&#10;&#10;Write or paste markdown content and run the audit..."></textarea>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="runBtn" onclick="runAudit()">▶ Run WCAG Audit</button>
+    <button class="btn btn-ghost" id="clearBtn" onclick="clearAll()">Clear</button>
+  </div>
+
+  <div class="preview-section" id="previewSection">
+    <div class="preview-header">
+      <div class="preview-label">HTML Preview <span class="lang-badge">lang="en"</span></div>
+      <div class="preview-tabs">
+        <button class="preview-tab active" onclick="showPreviewTab('rendered')">Rendered</button>
+        <button class="preview-tab" onclick="showPreviewTab('source')">HTML Source</button>
+      </div>
+    </div>
+    <div class="preview-rendered" id="previewRendered"></div>
+    <div class="preview-source" id="previewSource"></div>
+  </div>
+
+  <div class="results" id="results"></div>
+
+  <div id="audit-container"></div>
+</div>
+
+<script>
+// --- File upload / drag-drop ---
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const mdInput = document.getElementById('mdInput');
+
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('dragover'); }));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('dragover'); }));
+
+dropZone.addEventListener('drop', ev => {
+  const file = ev.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) readFile(fileInput.files[0]);
+});
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => { mdInput.value = e.target.result; };
+  reader.readAsText(file);
+}
+
+function clearAll() {
+  mdInput.value = '';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('previewSection').classList.remove('visible');
+  fileInput.value = '';
+}
+
+// --- Preview tab switching ---
+function showPreviewTab(tab) {
+  const rendered = document.getElementById('previewRendered');
+  const source = document.getElementById('previewSource');
+  const tabs = document.querySelectorAll('.preview-tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  if (tab === 'rendered') {
+    rendered.style.display = 'block';
+    source.style.display = 'none';
+    tabs[0].classList.add('active');
+  } else {
+    rendered.style.display = 'none';
+    source.style.display = 'block';
+    tabs[1].classList.add('active');
+  }
+}
+
+// --- WCAG Audit Engine ---
+function runAudit() {
+  const md = mdInput.value.trim();
+  if (!md) return;
+
+  const bodyHtml = marked.parse(md);
+
+  // Build full HTML document with lang="en"
+  const fullHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Document</title>\n</head>\n<body>\n${bodyHtml}\n</body>\n</html>`;
+
+  // Show preview
+  document.getElementById('previewRendered').innerHTML = bodyHtml;
+  document.getElementById('previewSource').textContent = fullHtml;
+  document.getElementById('previewSection').classList.add('visible');
+
+  // Parse into hidden container for audit
+  const auditRoot = document.getElementById('audit-container');
+  auditRoot.innerHTML = bodyHtml;
+
+  const issues = [];
+
+  // 1. Images without alt text (WCAG 1.1.1)
+  checkImages(auditRoot, md, issues);
+
+  // 2. Heading hierarchy (WCAG 1.3.1, 2.4.6)
+  checkHeadings(auditRoot, issues);
+
+  // 3. Link accessibility (WCAG 2.4.4, 2.4.9)
+  checkLinks(auditRoot, issues);
+
+  // 4. Table accessibility (WCAG 1.3.1)
+  checkTables(auditRoot, issues);
+
+  // 5. Language attribute (WCAG 3.1.1) — auto-applied
+  checkLanguage(issues);
+
+  // 6. Color-only meaning (WCAG 1.4.1) — heuristic
+  checkColorMeaning(md, issues);
+
+  // 7. List structure (WCAG 1.3.1)
+  checkLists(auditRoot, issues);
+
+  // 8. Content readability heuristics (WCAG 3.1.5)
+  checkReadability(md, issues);
+
+  // 9. Empty elements
+  checkEmptyElements(auditRoot, issues);
+
+  // 10. Keyboard/focus considerations
+  checkInteractive(auditRoot, issues);
+
+  renderResults(issues);
+}
+
+function checkImages(root, md, issues) {
+  const imgs = root.querySelectorAll('img');
+  let hasImages = imgs.length > 0;
+  let missingAlt = 0;
+  let genericAlt = 0;
+
+  imgs.forEach(img => {
+    const alt = img.getAttribute('alt');
+    if (!alt || alt.trim() === '') {
+      missingAlt++;
+      issues.push({
+        severity: 'error',
+        group: 'Images',
+        title: `Image missing alt text`,
+        detail: `Source: "${img.src.split('/').pop() || img.src}". Every non-decorative image must have descriptive alt text.`,
+        wcag: 'WCAG 1.1.1 Non-text Content (Level A)'
+      });
+    } else if (/^(image|photo|picture|img|screenshot|graphic|icon|logo)$/i.test(alt.trim())) {
+      genericAlt++;
+      issues.push({
+        severity: 'warning',
+        group: 'Images',
+        title: `Generic alt text: "${alt}"`,
+        detail: `Alt text should describe the image's content or purpose, not simply label it as an image.`,
+        wcag: 'WCAG 1.1.1 Non-text Content (Level A)'
+      });
+    }
+  });
+
+  // Check markdown for images with empty alt pattern ![](...)
+  const emptyAltPattern = /!\[\s*\]\(/g;
+  const emptyMatches = md.match(emptyAltPattern);
+  if (emptyMatches && emptyMatches.length > imgs.length) {
+    // extra catch
+  }
+
+  if (hasImages && missingAlt === 0 && genericAlt === 0) {
+    issues.push({
+      severity: 'pass',
+      group: 'Images',
+      title: `All ${imgs.length} image(s) have descriptive alt text`,
+      detail: '',
+      wcag: 'WCAG 1.1.1 Non-text Content (Level A)'
+    });
+  }
+
+  if (!hasImages) {
+    issues.push({
+      severity: 'info',
+      group: 'Images',
+      title: 'No images found in document',
+      detail: 'No image accessibility checks needed.',
+      wcag: 'WCAG 1.1.1'
+    });
+  }
+}
+
+function checkHeadings(root, issues) {
+  const headings = root.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  if (headings.length === 0) {
+    issues.push({
+      severity: 'warning',
+      group: 'Headings',
+      title: 'No headings found',
+      detail: 'Documents should use headings to provide structure. Screen reader users rely on headings to navigate.',
+      wcag: 'WCAG 1.3.1 Info and Relationships (Level A), 2.4.6 Headings and Labels (Level AA)'
+    });
+    return;
+  }
+
+  // Check for h1 — informational only (syllabi may be embedded in a page with its own h1)
+  const h1s = root.querySelectorAll('h1');
+  if (h1s.length === 0) {
+    issues.push({
+      severity: 'info',
+      group: 'Headings',
+      title: 'No H1 heading in document',
+      detail: 'Not required if this content will be embedded in a page that already provides an H1.',
+      wcag: 'WCAG 2.4.6 Headings and Labels (Level AA)'
+    });
+  }
+
+  // Check hierarchy skips
+  let prevLevel = 0;
+  let skips = 0;
+  headings.forEach(h => {
+    const level = parseInt(h.tagName[1]);
+    if (prevLevel > 0 && level > prevLevel + 1) {
+      skips++;
+      issues.push({
+        severity: 'error',
+        group: 'Headings',
+        title: `Heading level skipped: H${prevLevel} → H${level}`,
+        detail: `"${h.textContent.substring(0, 60)}..." — Headings must not skip levels (e.g., H2 to H4). Screen readers use heading levels for document outline.`,
+        wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+      });
+    }
+    prevLevel = level;
+  });
+
+  // Check empty headings
+  headings.forEach(h => {
+    if (h.textContent.trim() === '') {
+      issues.push({
+        severity: 'error',
+        group: 'Headings',
+        title: `Empty ${h.tagName} heading`,
+        detail: 'Empty headings are announced by screen readers but provide no useful information.',
+        wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+      });
+    }
+  });
+
+  if (skips === 0) {
+    issues.push({
+      severity: 'pass',
+      group: 'Headings',
+      title: `Heading hierarchy is well-structured (${headings.length} headings)`,
+      detail: '',
+      wcag: 'WCAG 1.3.1, 2.4.6'
+    });
+  }
+}
+
+function checkLinks(root, issues) {
+  const links = root.querySelectorAll('a');
+  if (links.length === 0) {
+    issues.push({
+      severity: 'info',
+      group: 'Links',
+      title: 'No links found',
+      detail: '',
+      wcag: 'WCAG 2.4.4'
+    });
+    return;
+  }
+
+  let badLinks = 0;
+  const genericPhrases = /^(click here|here|link|read more|more|this|this link|learn more|go|click|tap here)$/i;
+
+  links.forEach(a => {
+    const text = a.textContent.trim();
+    const href = a.getAttribute('href') || '';
+
+    if (!text && !a.querySelector('img')) {
+      badLinks++;
+      issues.push({
+        severity: 'error',
+        group: 'Links',
+        title: 'Empty link text',
+        detail: `Link to "${href}" has no accessible text. Screen readers will announce it as just "link".`,
+        wcag: 'WCAG 2.4.4 Link Purpose (Level A)'
+      });
+    } else if (genericPhrases.test(text)) {
+      badLinks++;
+      issues.push({
+        severity: 'warning',
+        group: 'Links',
+        title: `Generic link text: "${text}"`,
+        detail: `Links should describe their destination. "${text}" is meaningless when read out of context (e.g., in a links list).`,
+        wcag: 'WCAG 2.4.4 Link Purpose (Level A)'
+      });
+    }
+
+    // Bare URL as link text
+    if (/^https?:\/\//.test(text) && text.length > 40) {
+      badLinks++;
+      issues.push({
+        severity: 'warning',
+        group: 'Links',
+        title: 'Bare URL used as link text',
+        detail: `"${text.substring(0, 50)}..." — Long URLs are difficult for screen readers to announce. Use descriptive text instead.`,
+        wcag: 'WCAG 2.4.4 Link Purpose (Level A)'
+      });
+    }
+  });
+
+  if (badLinks === 0) {
+    issues.push({
+      severity: 'pass',
+      group: 'Links',
+      title: `All ${links.length} link(s) have descriptive text`,
+      detail: '',
+      wcag: 'WCAG 2.4.4 Link Purpose (Level A)'
+    });
+  }
+}
+
+function checkTables(root, issues) {
+  const tables = root.querySelectorAll('table');
+  if (tables.length === 0) return;
+
+  tables.forEach((table, i) => {
+    const ths = table.querySelectorAll('th');
+    const caption = table.querySelector('caption');
+
+    if (ths.length === 0) {
+      issues.push({
+        severity: 'error',
+        group: 'Tables',
+        title: `Table ${i + 1} has no header cells (<th>)`,
+        detail: 'Tables must have header cells so screen readers can associate data cells with their headers.',
+        wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+      });
+    } else {
+      issues.push({
+        severity: 'pass',
+        group: 'Tables',
+        title: `Table ${i + 1} has ${ths.length} header cell(s)`,
+        detail: '',
+        wcag: 'WCAG 1.3.1'
+      });
+    }
+
+    if (!caption) {
+      issues.push({
+        severity: 'info',
+        group: 'Tables',
+        title: `Table ${i + 1} has no <caption>`,
+        detail: 'Consider adding a caption to help screen reader users understand the table\'s purpose. Note: Markdown doesn\'t support captions natively.',
+        wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+      });
+    }
+  });
+}
+
+function checkLanguage(issues) {
+  issues.push({
+    severity: 'pass',
+    group: 'Language',
+    title: 'HTML output includes lang="en"',
+    detail: 'The converted HTML document is automatically wrapped with <html lang="en"> for screen reader compatibility.',
+    wcag: 'WCAG 3.1.1 Language of Page (Level A)'
+  });
+}
+
+function checkColorMeaning(md, issues) {
+  // Heuristic: check for inline HTML with style containing color
+  const colorStylePattern = /style\s*=\s*["'][^"']*color\s*:/gi;
+  const matches = md.match(colorStylePattern);
+
+  if (matches && matches.length > 0) {
+    issues.push({
+      severity: 'warning',
+      group: 'Color & Contrast',
+      title: 'Inline color styles detected',
+      detail: `Found ${matches.length} inline color style(s). Ensure color is not the only way information is conveyed. Users who are color-blind or use screen readers may not perceive color differences.`,
+      wcag: 'WCAG 1.4.1 Use of Color (Level A)'
+    });
+  }
+
+  // Check for emphasis-only meaning patterns
+  const emphOnlyLines = md.split('\n').filter(l => /^\*\*[^*]+\*\*$/.test(l.trim()) || /^\*[^*]+\*$/.test(l.trim()));
+  if (emphOnlyLines.length > 3) {
+    issues.push({
+      severity: 'info',
+      group: 'Color & Contrast',
+      title: 'Heavy use of emphasis formatting',
+      detail: 'Multiple lines use only bold/italic formatting. Ensure meaning isn\'t conveyed solely through visual styling — screen readers may not convey emphasis consistently.',
+      wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+    });
+  }
+}
+
+function checkLists(root, issues) {
+  const lists = root.querySelectorAll('ul, ol');
+  const allText = root.textContent;
+
+  // Check for fake lists (lines starting with dashes/asterisks not converted to real lists)
+  // This is harder in converted markdown, but check for sequential <p> with dash-prefixed content
+  const paragraphs = root.querySelectorAll('p');
+  let fakeLists = 0;
+  paragraphs.forEach(p => {
+    const lines = p.innerHTML.split('<br>');
+    if (lines.length > 2) {
+      const dashLines = lines.filter(l => /^\s*[-–—•]\s/.test(l.replace(/<[^>]+>/g, '')));
+      if (dashLines.length > 2) fakeLists++;
+    }
+  });
+
+  if (fakeLists > 0) {
+    issues.push({
+      severity: 'warning',
+      group: 'Structure',
+      title: 'Possible fake list detected',
+      detail: 'Text appears to use dashes/bullets inside paragraphs instead of proper list markup. Use Markdown list syntax (- or *) for screen readers to identify list structure.',
+      wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+    });
+  }
+}
+
+function checkReadability(md, issues) {
+  const words = md.replace(/[#\[\]\(\)!`*_>|~-]/g, ' ').split(/\s+/).filter(w => w.length > 0);
+  const longWords = words.filter(w => w.length > 14);
+
+  if (words.length > 50) {
+    const ratio = longWords.length / words.length;
+    if (ratio > 0.15) {
+      issues.push({
+        severity: 'info',
+        group: 'Readability',
+        title: 'High density of complex words',
+        detail: `${Math.round(ratio * 100)}% of words are 15+ characters. Consider using simpler language where possible for broader accessibility.`,
+        wcag: 'WCAG 3.1.5 Reading Level (Level AAA)'
+      });
+    }
+  }
+
+  // Check for very long paragraphs
+  const paragraphs = md.split(/\n\s*\n/).filter(p => !p.startsWith('#') && !p.startsWith('|') && !p.startsWith('-') && !p.startsWith('*') && !p.startsWith('>'));
+  const longParas = paragraphs.filter(p => p.split(/\s+/).length > 150);
+  if (longParas.length > 0) {
+    issues.push({
+      severity: 'info',
+      group: 'Readability',
+      title: `${longParas.length} very long paragraph(s) detected`,
+      detail: 'Paragraphs over 150 words can be difficult for screen reader users to navigate. Consider breaking them up with headings or shorter sections.',
+      wcag: 'WCAG 3.1.5 Reading Level (Level AAA)'
+    });
+  }
+}
+
+function checkEmptyElements(root, issues) {
+  const empties = root.querySelectorAll('p, li, td, th');
+  let emptyCount = 0;
+  empties.forEach(el => {
+    if (el.textContent.trim() === '' && !el.querySelector('img, input, svg')) {
+      emptyCount++;
+    }
+  });
+
+  if (emptyCount > 2) {
+    issues.push({
+      severity: 'warning',
+      group: 'Structure',
+      title: `${emptyCount} empty content elements found`,
+      detail: 'Empty paragraphs, list items, or table cells can confuse screen readers. Remove empty elements or add content.',
+      wcag: 'WCAG 1.3.1 Info and Relationships (Level A)'
+    });
+  }
+}
+
+function checkInteractive(root, issues) {
+  const iframes = root.querySelectorAll('iframe');
+  if (iframes.length > 0) {
+    iframes.forEach(iframe => {
+      if (!iframe.getAttribute('title')) {
+        issues.push({
+          severity: 'error',
+          group: 'Embedded Content',
+          title: 'Iframe missing title attribute',
+          detail: 'Iframes must have a title so screen reader users know what the embedded content is.',
+          wcag: 'WCAG 2.4.1 Bypass Blocks (Level A)'
+        });
+      }
+    });
+  }
+}
+
+// --- Render results ---
+function renderResults(issues) {
+  const container = document.getElementById('results');
+
+  const errors = issues.filter(i => i.severity === 'error').length;
+  const warnings = issues.filter(i => i.severity === 'warning').length;
+  const infos = issues.filter(i => i.severity === 'info').length;
+  const passes = issues.filter(i => i.severity === 'pass').length;
+
+  let html = `<div class="score-bar">
+    <div class="score-card fail"><div class="score-num">${errors}</div><div class="score-label">Errors</div></div>
+    <div class="score-card warn"><div class="score-num">${warnings}</div><div class="score-label">Warnings</div></div>
+    <div class="score-card info"><div class="score-num">${infos}</div><div class="score-label">Info</div></div>
+    <div class="score-card pass"><div class="score-num">${passes}</div><div class="score-label">Passed</div></div>
+  </div>`;
+
+  if (errors === 0 && warnings === 0) {
+    html += `<div class="all-pass-banner">✓ No WCAG errors or warnings detected</div>`;
+  }
+
+  // Group by group
+  const groups = {};
+  issues.forEach(issue => {
+    if (!groups[issue.group]) groups[issue.group] = [];
+    groups[issue.group].push(issue);
+  });
+
+  // Sort groups: errors first
+  const sortOrder = { error: 0, warning: 1, info: 2, pass: 3 };
+  const sortedGroups = Object.entries(groups).sort((a, b) => {
+    const aMin = Math.min(...a[1].map(i => sortOrder[i.severity]));
+    const bMin = Math.min(...b[1].map(i => sortOrder[i.severity]));
+    return aMin - bMin;
+  });
+
+  sortedGroups.forEach(([group, groupIssues]) => {
+    html += `<div class="issue-group">
+      <div class="issue-group-header">${group}</div>`;
+
+    groupIssues.sort((a, b) => sortOrder[a.severity] - sortOrder[b.severity]).forEach(issue => {
+      const tagClass = `tag-${issue.severity}`;
+      const tagLabel = issue.severity === 'error' ? 'Error' : issue.severity === 'warning' ? 'Warning' : issue.severity === 'info' ? 'Info' : 'Pass';
+
+      html += `<div class="issue-item severity-${issue.severity}">
+        <div><span class="issue-tag ${tagClass}">${tagLabel}</span> <span class="issue-title">${issue.title}</span></div>
+        ${issue.detail ? `<div class="issue-detail">${issue.detail}</div>` : ''}
+        <div class="issue-wcag">${issue.wcag}</div>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `<div class="footer-note">
+    <strong>Disclaimer:</strong> This tool performs automated heuristic checks against WCAG 2.1 AA success criteria. It does not constitute legal compliance. Automated tools typically catch 30–40% of accessibility issues. For full ADA/Section 508 compliance, supplement with manual screen reader testing (NVDA, VoiceOver, Orca) and expert review. State-specific requirements may also apply.
+  </div>`;
+
+  container.innerHTML = html;
+  container.classList.add('visible');
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
