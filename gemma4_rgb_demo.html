@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RGB Color Definition Demonstrator</title>
+    <style>
+        /* --- CSS STYLING --- */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        /* The visible color swatch */
+        #color-swatch {
+            width: 100%;
+            height: 150px;
+            border: 3px solid #333;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            transition: background-color 0.1s ease; /* Smooth color change */
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+            background-color: #f9f9f9;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        /* Styling the range sliders */
+        input[type="range"] {
+            width: 100%;
+            height: 25px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            border-radius: 50px; /* Rounded sliders */
+            cursor: pointer;
+        }
+
+        /* Custom slider thumb styling (optional, but nice) */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #333;
+            border-radius: 50%;
+            cursor: grab;
+        }
+
+        /* Code display for the final RGB value */
+        #rgb-output {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e6e6fa; /* Lavender background */
+            border: 2px dashed #555;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🌈 RGB Color Model Demonstrator</h1>
+        <p>Move the sliders to mix Red, Green, and Blue primaries and see how the color changes.</p>
+
+        <!-- The area that displays the color -->
+        <div id="color-swatch"></div>
+
+        <div class="controls">
+            <!-- Red Control -->
+            <div class="control-group">
+                <label for="red-slider">Red (R): <span id="red-value">0</span></label>
+                <input type="range" id="red-slider" min="0" max="255" value="0" oninput="updateColor()">
+            </div>
+
+            <!-- Green Control -->
+            <div class="control-group">
+                <label for="green-slider">Green (G): <span id="green-value">0</span></label>
+                <input type="range" id="green-slider" min="0" max="255" value="0" oninput="updateColor()">
+            </div>
+
+            <!-- Blue Control -->
+            <div class="control-group">
+                <label for="blue-slider">Blue (B): <span id="blue-value">0</span></label>
+                <input type="range" id="blue-slider" min="0" max="255" value="0" oninput="updateColor()">
+            </div>
+        </div>
+
+        <!-- Display the resulting RGB definition -->
+        <div id="rgb-output">
+            RGB: rgb(0, 0, 0)
+        </div>
+    </div>
+
+    <script>
+        // --- JAVASCRIPT LOGIC ---
+
+        /**
+         * Reads the current values from the sliders, updates the display,
+         * and updates the formatted RGB text.
+         */
+        function updateColor() {
+            // 1. Get current slider values
+            const red = document.getElementById('red-slider').value;
+            const green = document.getElementById('green-slider').value;
+            const blue = document.getElementById('blue-slider').value;
+
+            // 2. Update the display spans to show the number next to the slider
+            document.getElementById('red-value').textContent = red;
+            document.getElementById('green-value').textContent = green;
+            document.getElementById('blue-value').textContent = blue;
+
+            // 3. Construct the CSS RGB string
+            const rgbString = `rgb(${red}, ${green}, ${blue})`;
+            
+            // 4. Update the color swatch background
+            document.getElementById('color-swatch').style.backgroundColor = rgbString;
+            
+            // 5. Update the text output
+            document.getElementById('rgb-output').textContent = `RGB: ${rgbString}`;
+        }
+
+        // Initial call to set the color when the page first loads (starting black)
+        document.addEventListener('DOMContentLoaded', updateColor);
+    </script>
+</body>
+</html>
