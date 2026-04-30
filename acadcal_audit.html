@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Calendar CSV Generator</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2em auto; padding: 0 1em; }
+        .monday-row { margin-bottom: 6px; }
+        .monday-row input { margin-right: 6px; }
+        .add-btn { margin-top: 4px; }
+        pre { background: #f5f5f5; padding: 1em; overflow: auto; max-height: 400px; }
+        .tally-table { border-collapse: collapse; margin: 0.5em 0 1.5em; min-width: 280px; }
+        .tally-table th, .tally-table td { border: 1px solid #ccc; padding: 6px 12px; text-align: left; }
+        .tally-table th { background: #f0f0f0; }
+        .tally-table .tally-total { font-weight: bold; background: #fafafa; }
+    </style>
+</head>
+<body>
+    <h1>Academic Calendar CSV Generator</h1>
+    <form id="semesterForm">
+        <h2>Academic Year</h2>
+        <label for="academicYear">Starting calendar year:</label>
+        <input type="number" id="academicYear" min="2000" max="2100" step="1">
+        <span id="academicYearDisplay" style="margin-left: 8px; color: #555;"></span>
+        <p style="font-size: 0.9em; color: #555;">Setting this fills in default dates below. Adjust each as needed.</p>
+
+        <h2>Fall Semester</h2>
+        <label for="fallStart">First day of Fall semester:</label>
+        <input type="date" id="fallStart" required><br><br>
+        <label for="fallEnd">Last day of Fall semester:</label>
+        <input type="date" id="fallEnd" required><br><br>
+
+        <h3>Fall days running on a Monday schedule</h3>
+        <p style="font-size: 0.9em; color: #555;">Add any non-Monday weekdays that should follow a Monday schedule. Saturdays and Sundays are not allowed.</p>
+        <div id="fallMondayDates"></div>
+        <button type="button" class="add-btn" onclick="addMondayDate('fall')">+ Add Fall date</button>
+
+        <h2>Spring Semester</h2>
+        <label for="springStart">First day of Spring semester:</label>
+        <input type="date" id="springStart" required><br><br>
+        <label for="springEnd">Last day of Spring semester:</label>
+        <input type="date" id="springEnd" required><br><br>
+
+        <h3>Spring days running on a Monday schedule</h3>
+        <p style="font-size: 0.9em; color: #555;">Add any non-Monday weekdays that should follow a Monday schedule. Saturdays and Sundays are not allowed.</p>
+        <div id="springMondayDates"></div>
+        <button type="button" class="add-btn" onclick="addMondayDate('spring')">+ Add Spring date</button>
+
+        <h3>Holidays</h3>
+        <label for="springBreak">Monday of Spring Break (Mon-Fri week):</label>
+        <input type="date" id="springBreak"><br><br>
+
+        <button type="button" onclick="generateCalendar()">Generate CSV</button>
+    </form>
+
+    <h3>Generated CSV Data:</h3>
+    <pre id="csvOutput"></pre>
+    <button type="button" id="downloadBtn" onclick="downloadCSV()" style="display: none;">Download CSV</button>
+
+    <h3>Instructional Weekday Tally:</h3>
+    <div id="tallyOutput"></div>
+
+    <script>
+        // --- Timezone-safe date helpers (avoid UTC drift from toISOString) ---
+        function parseLocalDate(dateString) {
+            const [y, m, d] = dateString.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+        function formatLocalDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // --- Monday-schedule date inputs ---
+        function addMondayDate(semester) {
+            const container = document.getElementById(semester + 'MondayDates');
+            const row = document.createElement('div');
+            row.className = 'monday-row';
+
+            const input = document.createElement('input');
+            input.type = 'date';
+            input.className = 'monday-date';
+            input.addEventListener('change', function () {
+                if (!this.value) return;
+                const day = parseLocalDate(this.value).getDay();
+                if (day === 0 || day === 6) {
+                    alert('Saturdays and Sundays cannot run on a Monday schedule.');
+                    this.value = '';
+                    return;
+                }
+                if (day === 1) {
+                    alert('That date is already a Monday — no need to mark it.');
+                    this.value = '';
+                }
+            });
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = () => row.remove();
+
+            row.appendChild(input);
+            row.appendChild(removeBtn);
+            container.appendChild(row);
+        }
+
+        function getMondayScheduleDates(semester) {
+            const container = document.getElementById(semester + 'MondayDates');
+            return new Set(
+                Array.from(container.querySelectorAll('input.monday-date'))
+                    .map(i => i.value)
+                    .filter(v => v)
+            );
+        }
+
+        function downloadCSV() {
+            const csv = document.getElementById('csvOutput').textContent;
+            if (!csv) return;
+            const year = parseInt(document.getElementById('academicYear').value, 10);
+            const filename = (year && !isNaN(year))
+                ? `academic_calendar_${year}-${year + 1}.csv`
+                : 'academic_calendar.csv';
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- Defaults driven by Academic Year ---
+        function applyDefaults() {
+            const yearVal = document.getElementById('academicYear').value;
+            const year = parseInt(yearVal, 10);
+            if (!year || isNaN(year)) return;
+
+            document.getElementById('fallStart').value = `${year}-09-01`;
+            document.getElementById('fallEnd').value = `${year}-12-15`;
+            document.getElementById('springStart').value = `${year + 1}-01-20`;
+            document.getElementById('springEnd').value = `${year + 1}-05-01`;
+
+            // Spring break default: 7th Monday on or after the first day of Spring.
+            const springStart = parseLocalDate(`${year + 1}-01-20`);
+            const cursor = new Date(springStart);
+            while (cursor.getDay() !== 1) cursor.setDate(cursor.getDate() + 1);
+            cursor.setDate(cursor.getDate() + 6 * 7); // 1st Monday + 6 weeks = 7th Monday
+            document.getElementById('springBreak').value = formatLocalDate(cursor);
+        }
+
+        function updateYearDisplay() {
+            const year = parseInt(document.getElementById('academicYear').value, 10);
+            const display = document.getElementById('academicYearDisplay');
+            if (year && !isNaN(year)) {
+                const next = String(year + 1).slice(-2);
+                display.textContent = `(${year}-${next})`;
+            } else {
+                display.textContent = '';
+            }
+        }
+
+        // Wire up listeners on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const yearInput = document.getElementById('academicYear');
+            yearInput.value = new Date().getFullYear();
+            updateYearDisplay();
+            applyDefaults();
+
+            yearInput.addEventListener('input', () => {
+                updateYearDisplay();
+                applyDefaults();
+            });
+
+            document.getElementById('springBreak').addEventListener('change', function () {
+                if (!this.value) return;
+                if (parseLocalDate(this.value).getDay() !== 1) {
+                    alert('Spring break must start on a Monday.');
+                    this.value = '';
+                }
+            });
+        });
+
+        // --- Calendar generation ---
+        function generateCalendar() {
+            const fallStart = document.getElementById('fallStart').value;
+            const fallEnd = document.getElementById('fallEnd').value;
+            const springStart = document.getElementById('springStart').value;
+            const springEnd = document.getElementById('springEnd').value;
+            const springBreak = document.getElementById('springBreak').value;
+
+            if (!fallStart || !fallEnd || !springStart || !springEnd) {
+                alert('Please fill in all the dates.');
+                return;
+            }
+
+            function generateDates(startDate, endDate) {
+                const start = parseLocalDate(startDate);
+                const end = parseLocalDate(endDate);
+                const dates = [];
+                const cursor = new Date(start);
+                while (cursor <= end) {
+                    dates.push(new Date(cursor));
+                    cursor.setDate(cursor.getDate() + 1);
+                }
+                return dates;
+            }
+
+            // Nth weekday-of-month helper (fixes off-by-one bugs in original loops)
+            function nthWeekdayOfMonth(year, month, weekday, n) {
+                const d = new Date(year, month, 1);
+                let count = 0;
+                while (true) {
+                    if (d.getDay() === weekday) {
+                        count++;
+                        if (count === n) return d;
+                    }
+                    d.setDate(d.getDate() + 1);
+                }
+            }
+
+            function getHolidayDates(year) {
+                const holidays = {};
+                holidays[formatLocalDate(nthWeekdayOfMonth(year, 8, 1, 1))] = "Labor Day";
+                holidays[formatLocalDate(nthWeekdayOfMonth(year, 9, 1, 2))] = "Indigenous Peoples' Day";
+
+                let veteransDay = new Date(year, 10, 11);
+                if (veteransDay.getDay() === 6) veteransDay.setDate(13);
+                else if (veteransDay.getDay() === 0) veteransDay.setDate(12);
+                holidays[formatLocalDate(veteransDay)] = "Veterans' Day";
+
+                const thx = nthWeekdayOfMonth(year, 10, 4, 4);
+                holidays[formatLocalDate(thx)] = "Thanksgiving";
+                const wedBefore = new Date(thx); wedBefore.setDate(thx.getDate() - 1);
+                const friAfter = new Date(thx); friAfter.setDate(thx.getDate() + 1);
+                holidays[formatLocalDate(wedBefore)] = "__HALF_THX__";
+                holidays[formatLocalDate(friAfter)] = "__NOINSTR_THX__";
+
+                holidays[formatLocalDate(nthWeekdayOfMonth(year, 0, 1, 3))] = "MLK Day";
+                holidays[formatLocalDate(nthWeekdayOfMonth(year, 1, 1, 3))] = "Presidents' Day";
+                holidays[formatLocalDate(nthWeekdayOfMonth(year, 3, 1, 3))] = "Patriot's Day";
+
+                return holidays;
+            }
+
+            function parseSpringBreak(s) {
+                if (!s) return null;
+                const start = parseLocalDate(s);
+                if (isNaN(start)) return null;
+                const end = new Date(start);
+                end.setDate(end.getDate() + 4); // Mon-Fri
+                return { start, end };
+            }
+
+            const generateCSV = (dates, semester) => {
+                const startStr = semester === 'fall' ? fallStart : springStart;
+                const endStr = semester === 'fall' ? fallEnd : springEnd;
+                const startYear = parseLocalDate(startStr).getFullYear();
+                const endYear = parseLocalDate(endStr).getFullYear();
+
+                // Cover both calendar years a semester might span
+                const holidays = { ...getHolidayDates(startYear) };
+                if (endYear !== startYear) Object.assign(holidays, getHolidayDates(endYear));
+
+                const sb = parseSpringBreak(springBreak);
+                const mondayDates = getMondayScheduleDates(semester);
+
+                // --- Pass 1: build a record per day (instruction, weekday treatment, description) ---
+                const records = dates.map(date => {
+                    const dateString = formatLocalDate(date);
+                    const dow = date.getDay();
+                    const isWeekend = (dow === 6 || dow === 0);
+                    let instruction = isWeekend ? 0 : 1;
+                    let mondayCol = '';
+                    let description = '';
+
+                    const tag = holidays[dateString];
+                    if (tag === '__HALF_THX__') {
+                        instruction = 0.5;
+                        description = 'Half-day before Thanksgiving';
+                    } else if (tag === '__NOINSTR_THX__') {
+                        instruction = 0;
+                        description = 'No instruction (Friday after Thanksgiving)';
+                    } else if (tag) {
+                        instruction = 0;
+                        description = tag;
+                    }
+
+                    if (semester === 'spring' && sb && date >= sb.start && date <= sb.end) {
+                        instruction = 0;
+                        description = 'Spring Break';
+                    }
+
+                    if (mondayDates.has(dateString) && !isWeekend && instruction > 0) {
+                        mondayCol = 'Monday';
+                    }
+
+                    return { date, dateString, dow, isWeekend, instruction, mondayCol, description };
+                });
+
+                // --- Pass 2: derive registrar tags from the record list ---
+                const registrarTags = computeRegistrarTags(records);
+
+                // --- Pass 3: emit CSV rows and accumulate weekday tally ---
+                const tally = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}; // Mon..Fri
+                let csv = 'Date,Instruction,Monday Schedule,Registrar Tags,Descriptive Information\n';
+
+                records.forEach(r => {
+                    if (!r.isWeekend && r.instruction > 0) {
+                        const effectiveDow = r.mondayCol === 'Monday' ? 1 : r.dow;
+                        tally[effectiveDow] += r.instruction;
+                    }
+                    const instrStr = Number.isInteger(r.instruction) ? String(r.instruction) : r.instruction.toFixed(1);
+                    const tagStr = registrarTags[r.dateString] || '';
+                    csv += `${r.dateString},${instrStr},${r.mondayCol},${tagStr},${r.description}\n`;
+                });
+
+                return { csv, tally };
+            };
+
+            const fallDates = generateDates(fallStart, fallEnd);
+            const springDates = generateDates(springStart, springEnd);
+
+            const fallResult = generateCSV(fallDates, 'fall');
+            const springResult = generateCSV(springDates, 'spring');
+
+            const fullCSV =
+                '# Fall Semester\n' + fallResult.csv +
+                '\n# Spring Semester\n' + springResult.csv;
+
+            document.getElementById('csvOutput').textContent = fullCSV;
+            document.getElementById('downloadBtn').style.display = '';
+            renderTally(fallResult.tally, springResult.tally);
+        }
+
+        function computeRegistrarTags(records) {
+            // Returns an object mapping dateString -> "TAG1; TAG2"
+            const tags = {};
+            const add = (ds, t) => { tags[ds] = tags[ds] ? tags[ds] + '; ' + t : t; };
+
+            // Instructional days only — anything with instruction > 0 (full or half).
+            const instr = records.filter(r => r.instruction > 0);
+            if (instr.length === 0) return tags;
+
+            // Cumulative instructional time up to and including each instructional day.
+            let running = 0;
+            const cum = instr.map(r => ({ ...r, cum: (running += r.instruction) }));
+            const total = running;
+
+            // Helper: index of the day whose cumulative value within [lo..hi] is closest to `target`.
+            const closestIdx = (slice, target, sliceOffset) => {
+                let best = 0, bestDiff = Infinity;
+                for (let i = 0; i < slice.length; i++) {
+                    const cumInSlice = slice[i].cum - sliceOffset;
+                    const diff = Math.abs(cumInSlice - target);
+                    if (diff < bestDiff) { bestDiff = diff; best = i; }
+                }
+                return best;
+            };
+
+            // --- AE / BB: split total instructional time as close to the middle as possible.
+            // AE = last day of session A; BB = next instructional day after AE.
+            const aeIdx = closestIdx(cum, total / 2, 0);
+            // Avoid AE landing on the very last day (would leave session B empty).
+            const aeFinal = Math.min(aeIdx, cum.length - 2);
+            add(cum[aeFinal].dateString, 'AE');
+            add(cum[aeFinal + 1].dateString, 'BB');
+
+            // --- AW: 75% of session A's instructional time.
+            const sessionA = cum.slice(0, aeFinal + 1);
+            const sessionATotal = sessionA[sessionA.length - 1].cum;
+            const awIdx = closestIdx(sessionA, sessionATotal * 0.75, 0);
+            add(sessionA[awIdx].dateString, 'AW');
+
+            // --- BW: 75% of session B's instructional time.
+            const sessionB = cum.slice(aeFinal + 1);
+            const sessionBOffset = sessionATotal; // cumulative value at start of B = total of A
+            const sessionBTotal = sessionB[sessionB.length - 1].cum - sessionBOffset;
+            const bwIdx = closestIdx(sessionB, sessionBTotal * 0.75, sessionBOffset);
+            add(sessionB[bwIdx].dateString, 'BW');
+
+            // --- AD: fifth instructional day.
+            if (instr.length >= 5) add(instr[4].dateString, 'AD');
+
+            // --- W: 21 calendar days before the last instructional day.
+            const lastDate = new Date(instr[instr.length - 1].date);
+            lastDate.setDate(lastDate.getDate() - 21);
+            add(formatLocalDate(lastDate), 'W');
+
+            // --- INC: 21 calendar days after the first instructional day.
+            const firstDate = new Date(instr[0].date);
+            firstDate.setDate(firstDate.getDate() + 21);
+            add(formatLocalDate(firstDate), 'INC');
+
+            return tags;
+        }
+
+        function renderTally(fallTally, springTally) {
+            const dayNames = {1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday'};
+            const fmt = n => Number.isInteger(n) ? String(n) : n.toFixed(1);
+
+            const buildTable = (title, tally) => {
+                const total = [1, 2, 3, 4, 5].reduce((s, d) => s + tally[d], 0);
+                let html = `<h4>${title}</h4><table class="tally-table">` +
+                    `<thead><tr><th>Weekday</th><th>Instructional days</th></tr></thead><tbody>`;
+                for (let d = 1; d <= 5; d++) {
+                    html += `<tr><td>${dayNames[d]}</td><td>${fmt(tally[d])}</td></tr>`;
+                }
+                html += `<tr class="tally-total"><td>Total</td><td>${fmt(total)}</td></tr>`;
+                html += `</tbody></table>`;
+                return html;
+            };
+
+            document.getElementById('tallyOutput').innerHTML =
+                buildTable('Fall Semester', fallTally) +
+                buildTable('Spring Semester', springTally);
+        }
+    </script>
+</body>
+</html>
