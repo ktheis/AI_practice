@@ -53,6 +53,11 @@ tr.mon td.n{color:#1d4ed8}
   <div id="main" style="display:none">
     <div class="controls">
       <select id="sem"></select>
+      <select id="session">
+        <option value="full">Full semester</option>
+        <option value="a">Session A</option>
+        <option value="b">Session B</option>
+      </select>
       <div class="days">
         <div class="day-btn" data-d="1">M</div>
         <div class="day-btn" data-d="2">T</div>
@@ -91,7 +96,7 @@ const TC={AD:"ad",INC:"inc",W:"w"};
 const DA=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MA=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-let cal={}, halfdays={}, sel=new Set(), sem="", wt="before";
+let cal={}, halfdays={}, sel=new Set(), sem="", wt="before", session="full";
 
 // --- CSV parsing ---
 function parseCSV(text){
@@ -163,6 +168,7 @@ document.querySelectorAll(".day-btn").forEach(b=>b.addEventListener("click",()=>
   render();
 }));
 document.getElementById("sem").addEventListener("change",e=>{sem=e.target.value;render();});
+document.getElementById("session").addEventListener("change",e=>{session=e.target.value;render();});
 
 function setT(t){
   wt=t;
@@ -196,17 +202,41 @@ function updateWedPrompt(){
 }
 
 // --- Build rows ---
-const ALWAYS_TAGS=["AE","W"];
+// Per-session config: which tags are always shown, which are suppressed entirely
+const SESSION_CFG={
+  full:{always:["AE","W"],   suppress:["AW","BW"]},
+  a:   {always:["AE","AW"],  suppress:["W","BW"]},
+  b:   {always:["BW"],       suppress:["W","AW"]}
+};
+
 function getRows(){
   if(!sel.size||!cal[sem])return null;
+  const cfg=SESSION_CFG[session];
   const hasMon=sel.has(1);
+
+  // Find boundary dates for session filtering
+  let aeDate=null, bbDate=null;
+  for(const r of cal[sem]){
+    const tags=r.tags?r.tags.split(";").filter(Boolean):[];
+    if(tags.includes("AE"))aeDate=r.date;
+    if(tags.includes("BB"))bbDate=r.date;
+  }
+
   let n=0, out=[];
   for(const r of cal[sem]){
+    // Date-range filter
+    if(session==="a"&&aeDate&&r.date>aeDate)continue;
+    if(session==="b"&&bbDate&&r.date<bbDate)continue;
+
     const d=dow(r.date), isM=r.monSched==="Monday";
     const tags=r.tags?r.tags.split(";").filter(Boolean):[];
-    const isMeetingDay=sel.has(d)||(hasMon&&isM);
-    const isAlways=tags.some(t=>ALWAYS_TAGS.includes(t));
-    if(!isMeetingDay&&!isAlways)continue;
+    const visibleTags=tags.filter(t=>!cfg.suppress.includes(t));
+    const calDaySelected=sel.has(d);
+    const isMeetingDay=isM?hasMon:calDaySelected;
+    const include=isMeetingDay||(isM&&calDaySelected);
+    const isAlways=visibleTags.some(t=>cfg.always.includes(t));
+    if(!include&&!isAlways)continue;
+
     const ei=isMeetingDay?effI(r):0, has=ei>0;
     if(has)n++;
     const notes=[];
@@ -214,8 +244,8 @@ function getRows(){
       notes.push(wt==="before"?"Half-day (class meets)":"Half-day — no instruction after 12:30");
     } else if(r.desc){notes.push(r.desc);}
     if(isM)notes.push("Runs as Monday schedule");
-    tags.forEach(t=>{if(TAGS[t])notes.push(TAGS[t]);});
-    out.push({s:r.date,tags:r.tags,isM,has,isMeetingDay,n:has?n:null,notes});
+    visibleTags.forEach(t=>{if(TAGS[t])notes.push(TAGS[t]);});
+    out.push({s:r.date,visibleTags,isM,has,n:has?n:null,notes});
   }
   return out;
 }
@@ -236,7 +266,7 @@ function render(){
   document.getElementById("sMiss").textContent=data.filter(r=>!r.has).length;
   document.getElementById("tb").innerHTML=data.map(r=>{
     let note=r.notes.join(" · ");
-    if(r.tags)r.tags.split(";").filter(Boolean).forEach(t=>note+=` <span class="pill ${TC[t]||''}">${t}</span>`);
+    r.visibleTags.forEach(t=>note+=` <span class="pill ${TC[t]||''}">${t}</span>`);
     const cls=r.has?(r.isM?"mon":""):"off";
     return`<tr class="${cls}"><td>${fmt(r.s)}</td><td>${r.n??""}</td><td class="n">${note}</td></tr>`;
   }).join("");
@@ -245,15 +275,16 @@ function render(){
 // --- Download ---
 function dl(){
   const data=getRows();if(!data||!sel.size)return;
+  const sessionLabel=session==="a"?"Session A":session==="b"?"Session B":"Full semester";
   const days=[...sel].sort().map(d=>["","Mon","Tue","Wed","Thu","Fri"][d]).join("/");
-  const lines=[`"${sem} — ${days}"`,'"Date","Session #","Notes"'];
+  const lines=[`"${sem} — ${sessionLabel} — ${days}"`,'"Date","Session #","Notes"'];
   data.forEach(r=>{
-    const note=r.notes.join("; ")+(r.tags?` [${r.tags}]`:"");
+    const note=r.notes.join("; ")+(r.visibleTags.length?` [${r.visibleTags.join(";")}]`:"");
     lines.push(`"${fmt(r.s)}","${r.n??''}","${note.replace(/"/g,'""')}"`);
   });
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([lines.join("\n")],{type:"text/csv"}));
-  a.download=`schedule_${sem.replace(/\s+/g,"_")}_${days.replace(/\//g,"")}.csv`;
+  a.download=`schedule_${sem.replace(/\s+/g,"_")}_${session}_${days.replace(/\//g,"")}.csv`;
   a.click();
 }
 </script>
