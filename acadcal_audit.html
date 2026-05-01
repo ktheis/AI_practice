@@ -396,9 +396,9 @@
             lastDate.setDate(lastDate.getDate() - 21);
             add(formatLocalDate(lastDate), 'W');
 
-            // --- INC: 21 calendar days after the first instructional day.
+            // --- INC: 28 calendar days after the first instructional day.
             const firstDate = new Date(instr[0].date);
-            firstDate.setDate(firstDate.getDate() + 21);
+            firstDate.setDate(firstDate.getDate() + 28);
             add(formatLocalDate(firstDate), 'INC');
 
             return tags;
